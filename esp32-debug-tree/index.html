@@ -106,17 +106,36 @@ body {
 /* Hardware checklist banner */
 #hw-checklist-banner {
   max-width: 760px;
-  margin: 0 auto 20px;
+  margin: 0 auto 16px;
   background: var(--bg-secondary);
   border: 1px solid var(--accent-yellow);
   border-radius: 10px;
-  padding: 16px 20px;
   display: none;
+}
+#hw-checklist-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 16px;
+  cursor: pointer;
+  user-select: none;
+}
+#hw-checklist-header:hover {
+  background: #d2992210;
+  border-radius: 10px;
 }
 #hw-checklist-banner h3 {
   color: var(--accent-yellow);
-  font-size: 0.9rem;
-  margin-bottom: 10px;
+  font-size: 0.85rem;
+  margin: 0;
+}
+#hw-checklist-toggle-icon {
+  color: var(--accent-yellow);
+  font-size: 0.8rem;
+  transition: transform 0.2s;
+}
+#hw-checklist-body {
+  padding: 0 16px 14px;
 }
 .hw-check-grid {
   display: grid;
@@ -658,17 +677,22 @@ pre {
 <div id="breadcrumb"></div>
 
 <div id="hw-checklist-banner">
-  <h3>ハードウェア基本チェックリスト（診断前に確認）</h3>
-  <div class="hw-check-grid">
-    <label class="hw-check-item"><input type="checkbox"> 電源電圧が 3.3V ±5% 以内か</label>
-    <label class="hw-check-item"><input type="checkbox"> USB ケーブルはデータ通信対応か（充電専用NG）</label>
-    <label class="hw-check-item"><input type="checkbox"> ブレッドボード・コネクタの接触は確実か</label>
-    <label class="hw-check-item"><input type="checkbox"> 3.3V/5V の混在接続がないか</label>
-    <label class="hw-check-item"><input type="checkbox"> GPIO0/2/5/12/15 を外部回路が引っ張っていないか</label>
-    <label class="hw-check-item"><input type="checkbox"> 未使用の入力ピンにプルアップ・プルダウンがあるか</label>
-    <label class="hw-check-item"><input type="checkbox"> ADC を使う場合は ADC1 のみか（Wi-Fi使用時）</label>
-    <label class="hw-check-item"><input type="checkbox"> 周辺にモーター・リレー・スイッチング電源がないか</label>
-    <label class="hw-check-item"><input type="checkbox"> 筐体内の温度が適切か（密閉・高温環境でないか）</label>
+  <div id="hw-checklist-header" onclick="toggleHWChecklist()">
+    <h3>&#9881; ハードウェア基本チェックリスト（診断前に確認）</h3>
+    <span id="hw-checklist-toggle-icon">&#9660; 開く</span>
+  </div>
+  <div id="hw-checklist-body" style="display:none">
+    <div class="hw-check-grid">
+      <label class="hw-check-item"><input type="checkbox"> 電源電圧が 3.3V ±5% 以内か</label>
+      <label class="hw-check-item"><input type="checkbox"> USB ケーブルはデータ通信対応か（充電専用NG）</label>
+      <label class="hw-check-item"><input type="checkbox"> ブレッドボード・コネクタの接触は確実か</label>
+      <label class="hw-check-item"><input type="checkbox"> 3.3V/5V の混在接続がないか</label>
+      <label class="hw-check-item"><input type="checkbox"> GPIO0/2/5/12/15 を外部回路が引っ張っていないか</label>
+      <label class="hw-check-item"><input type="checkbox"> 未使用の入力ピンにプルアップ・プルダウンがあるか</label>
+      <label class="hw-check-item"><input type="checkbox"> ADC を使う場合は ADC1 のみか（Wi-Fi使用時）</label>
+      <label class="hw-check-item"><input type="checkbox"> 周辺にモーター・リレー・スイッチング電源がないか</label>
+      <label class="hw-check-item"><input type="checkbox"> 筐体内の温度が適切か（密閉・高温環境でないか）</label>
+    </div>
   </div>
 </div>
 
@@ -935,7 +959,7 @@ comms_i2c: {
     { label: 'デバイスが見つからない（スキャンでもヒットしない）', next: 'r_i2c_notfound' },
     { label: '断続的に通信エラーになる', next: 'r_i2c_intermittent' },
     { label: '複数デバイスがある・アドレスが重複している', next: 'r_i2c_addr_conflict' },
-    { label: 'クロック速度が不一致かもしれない', next: 'r_i2c_clock' },
+    { label: 'クロック速度が不一致 / 異なる速度のデバイスが混在している', next: 'r_i2c_clock' },
     { label: '5V デバイスを 3.3V バスに接続している', next: 'r_i2c_voltage' },
     { label: '複数タスクから I2C を使っている', next: 'r_i2c_mutex' },
   ]
@@ -947,7 +971,7 @@ comms_spi: {
   choices: [
     { label: '応答がゴミデータ（0xFF や 0x00 ばかり）', next: 'r_spi_garbage' },
     { label: 'データが1ビットずれているような値になる', next: 'r_spi_mode' },
-    { label: '複数デバイスを接続すると競合する', next: 'r_spi_multi' },
+    { label: '複数デバイスを接続すると競合する / 速度やモードが混在する', next: 'r_spi_multi' },
     { label: 'GPIO12 を MISO に使っている', next: 'r_spi_gpio12' },
     { label: 'クロック速度が速すぎる可能性', next: 'r_spi_clock' },
   ]
@@ -1086,7 +1110,8 @@ r_stackoverflow: {
     '再帰呼び出しを避ける'
   ],
   info: '【中級者向け・ESP32固有】uxTaskGetStackHighWaterMark() はスタック領域をウォーク（ループでスキャン）します。スタックを塗りつぶした最高水位を返すので「HighWaterMark」です。標準 FreeRTOS はワード数を返しますが、ESP-IDF の実装（tasks.c の prvTaskCheckFreeStackSpace）はポインタ差分をそのままバイト数で返します。Arduino ESP32 BSP でも同様にバイト数です（× 4 不要）。256バイト未満は危険域。スタックは xTaskCreateUniversal 時に DRAM に確保されるため、PSRAM には置けません。',
-  code: `// ===================================================
+  code: `
+// ===================================================
 // 【挿入位置】タスク関数内の vTaskDelay の直前
 // 戻り値はバイト数（× 4 は不要）
 // デバッグ用：削除可能
@@ -1118,7 +1143,18 @@ xTaskCreateUniversal(
   NULL,
   1,
   &myTaskHandle  // <- ハンドルを保存（診断に使う）
-, tskNO_AFFINITY);`
+, tskNO_AFFINITY);
+
+void setup() {
+  Serial.begin(115200);
+  delay(100);
+  xTaskCreateUniversal(myTask, "myTask", 4096, NULL, 1, NULL, tskNO_AFFINITY);
+}
+
+void loop() {
+  vTaskDelay(portMAX_DELAY);
+}
+`
 },
 
 r_brownout: {
@@ -1132,7 +1168,8 @@ r_brownout: {
     '3.3V ラインに 100uF + 0.1uF のデカップリングコンデンサを追加する',
     '大電流負荷のスイッチング時にダイオードやスナバ回路を入れる'
   ],
-  code: `// ===================================================
+  code: `
+// ===================================================
 // 【挿入位置】setup() の Serial.begin() の直後・他の初期化より前
 // 理由：リセット理由を最初に記録する（後の初期化で上書きされる前）
 // ===================================================
@@ -1154,7 +1191,12 @@ void setup() {
   // ---------------------------------------------
 
   // v 既存の初期化はここより下（変更不要）
-}`
+}
+
+void loop() {
+  vTaskDelay(portMAX_DELAY); // setup()内でタスク起動済み
+}
+`
 },
 
 r_null_ptr: {
@@ -1168,26 +1210,36 @@ r_null_ptr: {
     '関数ポインタが初期化されているか確認する',
     'スタックの backtrace のアドレスを addr2line で解析する'
   ],
-  code: `// ===================================================
-// 【挿入位置】malloc・各種 Create 関数の直後
-// 理由：NULL チェックなしで使うと即 Guru Meditation
-// ===================================================
+  code: `
+void setup() {
+  Serial.begin(115200);
+  delay(100);
+  // ===================================================
+  // 【挿入位置】malloc・各種 Create 関数の直後
+  // 理由：NULL チェックなしで使うと即 Guru Meditation
+  // ===================================================
 
-// v ここに挿入 -------------------------------------
-void* buf = malloc(1024);
-if (buf == NULL) {
-  Serial.println("[ERR] malloc failed! Heap exhausted?");
-  Serial.printf("[HEAP] Free: %u bytes\\n", ESP.getFreeHeap());
-  while(1) delay(100); // 停止してシリアルで確認
+  // v ここに挿入 -------------------------------------
+  void* buf = malloc(1024);
+  if (buf == NULL) {
+    Serial.println("[ERR] malloc failed! Heap exhausted?");
+    Serial.printf("[HEAP] Free: %u bytes\\n", ESP.getFreeHeap());
+    while(1) delay(100); // 停止してシリアルで確認
+  }
+  // -------------------------------------------------
+
+  // Mutex の NULL チェック例
+  SemaphoreHandle_t mtx = xSemaphoreCreateMutex();
+  if (mtx == NULL) {
+    Serial.println("[ERR] Mutex create failed!");
+    while(1) delay(100);
+  }
 }
-// -------------------------------------------------
 
-// Mutex の NULL チェック例
-SemaphoreHandle_t mtx = xSemaphoreCreateMutex();
-if (mtx == NULL) {
-  Serial.println("[ERR] Mutex create failed!");
-  while(1) delay(100);
-}`
+void loop() {
+  delay(1000);
+}
+`
 },
 
 r_task_return: {
@@ -1201,7 +1253,8 @@ r_task_return: {
     'タスク終了が必要な場合はフラグ変数で制御し、vTaskDelete(NULL) で正常終了させる'
   ],
   warn: 'configASSERT が無効化されていると Guru Meditation が出ず、タスクが静かに消えます。症状：特定の処理が止まるがリセットしない。',
-  code: `// ===================================================
+  code: `
+// ===================================================
 // 【修正位置】タスク関数の構造全体
 // NG：while(1) を抜けて return してしまう
 // OK：vTaskDelete(NULL) を呼ぶ
@@ -1227,7 +1280,20 @@ void goodTask2(void *pvParam) {
   doSomethingOnce();
   vTaskDelete(NULL); // 自分自身を正常に削除
   // return は書かなくてよい（到達しない）
-}`
+}
+
+void setup() {
+  Serial.begin(115200);
+  delay(100);
+  xTaskCreateUniversal(badTask, "badTask", 4096, NULL, 1, NULL, tskNO_AFFINITY);
+  xTaskCreateUniversal(goodTask1, "goodTask1", 4096, NULL, 1, NULL, tskNO_AFFINITY);
+  xTaskCreateUniversal(goodTask2, "goodTask2", 4096, NULL, 1, NULL, tskNO_AFFINITY);
+}
+
+void loop() {
+  vTaskDelay(portMAX_DELAY);
+}
+`
 },
 
 r_twdt: {
@@ -1295,7 +1361,8 @@ r_iwdt: {
     'ISR から xTaskNotifyFromISR や xQueueSendFromISR を使ってタスクに通知する',
     'ISR 内で Serial.print や delay を絶対に呼ばない'
   ],
-  code: `// ===================================================
+  code: `
+// ===================================================
 // 【修正位置】ISR 関数の内部（関数名は変えない）
 // ===================================================
 
@@ -1321,7 +1388,12 @@ void workerTask(void *pvParam) {
 void setup() {
   xTaskCreateUniversal(workerTask, "worker", 4096, NULL, 5, &workerHandle, tskNO_AFFINITY);
   attachInterrupt(digitalPinToInterrupt(PIN), myISR, RISING);
-}`
+}
+
+void loop() {
+  vTaskDelay(portMAX_DELAY); // setup()内でタスク起動済み
+}
+`
 },
 
 r_wdt_generic: {
@@ -1333,7 +1405,8 @@ r_wdt_generic: {
     'シリアルログで "Task watchdog" か "Interrupt watchdog" を確認する',
     'TWDT なら vTaskDelay を追加、IWDT なら ISR を軽量化する'
   ],
-  code: `// ===================================================
+  code: `
+// ===================================================
 // 【挿入位置】setup() の Serial.begin() 直後
 // ===================================================
 void setup() {
@@ -1343,7 +1416,12 @@ void setup() {
   esp_reset_reason_t r = esp_reset_reason();
   Serial.printf("[RESET] reason=%d (%s)\\n", r,
     r==ESP_RST_INT_WDT?"INT_WDT":r==ESP_RST_TASK_WDT?"TASK_WDT":"OTHER");
-}`
+}
+
+void loop() {
+  vTaskDelay(portMAX_DELAY); // setup()内でタスク起動済み
+}
+`
 },
 
 r_reset_reason: {
@@ -1355,7 +1433,8 @@ r_reset_reason: {
     'esp_reset_reason() の値でリセット理由を特定する',
     'BROWNOUT -> 電源問題、PANIC -> コードバグ、WDT -> CPU占有'
   ],
-  code: `// ===================================================
+  code: `
+// ===================================================
 // 【挿入位置】setup() の Serial.begin() の直後・最初の処理
 // 理由：後の初期化が失敗しても記録できるように最初に書く
 // ===================================================
@@ -1379,7 +1458,12 @@ void setup() {
   // ---------------------------------------------
 
   // v 既存の初期化はここより下（変更不要）
-}`
+}
+
+void loop() {
+  vTaskDelay(portMAX_DELAY); // setup()内でタスク起動済み
+}
+`
 },
 
 r_race_confirmed: {
@@ -1393,7 +1477,8 @@ r_race_confirmed: {
     'Mutex の生成は xTaskCreateUniversal より前に行う'
   ],
   warn: 'Give を忘れると即デッドロックになります。エラーパスを必ず確認してください。',
-  code: `// ===================================================
+  code: `
+// ===================================================
 // STEP 1: グローバル変数として宣言（全関数の外・ファイル先頭付近）
 // ===================================================
 SemaphoreHandle_t mtx = NULL; // NULL で初期化必須
@@ -1438,7 +1523,12 @@ void taskA(void *pvParam) {
 // 1. NULL のまま使う    -> xSemaphoreTake(NULL, ...) -> クラッシュ
 // 2. Give を忘れる     -> デッドロック
 // 3. early return で Give 忘れ -> デッドロック
-// 4. xTaskCreateUniversal より後に生成 -> タスクが NULL の Mutex を使う`
+// 4. xTaskCreateUniversal より後に生成 -> タスクが NULL の Mutex を使う
+
+void loop() {
+  vTaskDelay(portMAX_DELAY); // setup()内でタスク起動済み
+}
+`
 },
 
 r_race_memory: {
@@ -1451,7 +1541,8 @@ r_race_memory: {
     'または各タスクに専用バッファを持たせる（タスクローカル設計）',
     'FreeRTOS Queue を使ってバッファ自体をタスク間で受け渡す'
   ],
-  code: `// ===================================================
+  code: `
+// ===================================================
 // STEP 1: グローバル変数として宣言
 // ===================================================
 SemaphoreHandle_t bufMtx = NULL;
@@ -1481,7 +1572,12 @@ void writerTask(void *pvParam) {
     }
     vTaskDelay(pdMS_TO_TICKS(100));
   }
-}`
+}
+
+void loop() {
+  vTaskDelay(portMAX_DELAY); // setup()内でタスク起動済み
+}
+`
 },
 
 r_i2c_mutex: {
@@ -1493,7 +1589,8 @@ r_i2c_mutex: {
     'I2C アクセスを Mutex で保護する',
     '全ての I2C アクセス箇所を一つの専用タスクに集約する設計も有効'
   ],
-  code: `// ===================================================
+  code: `
+// ===================================================
 // STEP 1: グローバル変数として宣言
 // ===================================================
 SemaphoreHandle_t i2cMtx = NULL;
@@ -1531,7 +1628,12 @@ float readTemperature() {
     xSemaphoreGive(i2cMtx); // 必ず Give する
   }
   return val;
-}`
+}
+
+void loop() {
+  vTaskDelay(portMAX_DELAY); // setup()内でタスク起動済み
+}
+`
 },
 
 r_multicore: {
@@ -1544,7 +1646,8 @@ r_multicore: {
     '複合操作（Read-Modify-Write）は Mutex で保護する',
     'portENTER_CRITICAL / portEXIT_CRITICAL で1バイト以上の操作を保護する'
   ],
-  code: `// ===================================================
+  code: `
+// ===================================================
 // STEP 1: グローバル変数として宣言（ファイル先頭）
 // ===================================================
 // ESP32 コア割り当て（デフォルト）:
@@ -1584,7 +1687,12 @@ void core0Task(void *pv) {
     portEXIT_CRITICAL(&mux);
     vTaskDelay(pdMS_TO_TICKS(10));
   }
-}`
+}
+
+void loop() {
+  vTaskDelay(portMAX_DELAY); // setup()内でタスク起動済み
+}
+`
 },
 
 r_isr_critical: {
@@ -1597,7 +1705,8 @@ r_isr_critical: {
     'タスク側では portENTER_CRITICAL / portEXIT_CRITICAL で保護する',
     'ISR からタスクへの通知は xTaskNotifyFromISR を使う'
   ],
-  code: `// ===================================================
+  code: `
+// ===================================================
 // 【修正位置】ISR 関数の内部 + タスク内のアクセス箇所
 // ===================================================
 
@@ -1629,7 +1738,18 @@ void myTask(void *pv) {
     }
     vTaskDelay(pdMS_TO_TICKS(1));
   }
-}`
+}
+
+void setup() {
+  Serial.begin(115200);
+  delay(100);
+  xTaskCreateUniversal(myTask, "myTask", 4096, NULL, 1, NULL, tskNO_AFFINITY);
+}
+
+void loop() {
+  vTaskDelay(portMAX_DELAY);
+}
+`
 },
 
 r_volatile_missing: {
@@ -1642,22 +1762,32 @@ r_volatile_missing: {
     'volatile は「コンパイラ最適化の抑制」であり、アトミック性は保証しない',
     'マルチバイトの volatile 変数への Read-Modify-Write は Mutex も必要'
   ],
-  code: `// ===================================================
-// 【修正位置】グローバル変数の宣言部分
-// -------------------------------------------------
-// v 既存のコードを修正（volatile を追加するだけ）
-// ===================================================
+  code: `
+void setup() {
+  Serial.begin(115200);
+  delay(100);
+  // ===================================================
+  // 【修正位置】グローバル変数の宣言部分
+  // -------------------------------------------------
+  // v 既存のコードを修正（volatile を追加するだけ）
+  // ===================================================
 
-// [NG] NG: volatile なし
-bool isrTriggered = false;
-uint32_t sensorValue = 0;
+  // [NG] NG: volatile なし
+  bool isrTriggered = false;
+  uint32_t sensorValue = 0;
 
-// OK: volatile あり
-volatile bool isrTriggered = false;
-volatile uint32_t sensorValue = 0;
+  // OK: volatile あり
+  volatile bool isrTriggered = false;
+  volatile uint32_t sensorValue = 0;
 
-// 注意：uint32_t の Read-Modify-Write はアトミックではない
-// -> インクリメント等は portENTER_CRITICAL でも保護すること`
+  // 注意：uint32_t の Read-Modify-Write はアトミックではない
+  // -> インクリメント等は portENTER_CRITICAL でも保護すること
+}
+
+void loop() {
+  delay(1000);
+}
+`
 },
 
 r_stack_smash: {
@@ -1670,7 +1800,8 @@ r_stack_smash: {
     'xTaskCreateUniversal のスタックサイズを増やす',
     'uxTaskGetStackHighWaterMark でギリギリでないか確認する'
   ],
-  code: `// ===================================================
+  code: `
+// ===================================================
 // 【修正位置】タスク関数内の大きなローカル変数宣言
 // ===================================================
 
@@ -1696,7 +1827,20 @@ void goodTask2(void *pv) {
     free(buf); // 忘れずに解放
   }
   vTaskDelay(pdMS_TO_TICKS(100));
-}`
+}
+
+void setup() {
+  Serial.begin(115200);
+  delay(100);
+  xTaskCreateUniversal(badTask, "badTask", 4096, NULL, 1, NULL, tskNO_AFFINITY);
+  xTaskCreateUniversal(goodTask1, "goodTask1", 4096, NULL, 1, NULL, tskNO_AFFINITY);
+  xTaskCreateUniversal(goodTask2, "goodTask2", 4096, NULL, 1, NULL, tskNO_AFFINITY);
+}
+
+void loop() {
+  vTaskDelay(portMAX_DELAY);
+}
+`
 },
 
 r_isr_iram: {
@@ -1712,7 +1856,8 @@ r_isr_iram: {
     'ISR 内でのみ使う定数は DRAM_ATTR を付ける'
   ],
   warn: '浮動小数点演算は ISR 内で特に危険です。ESP32 は FPU コンテキストを ISR 進入時に自動保存しないため、ISR 内で float を使うとタスク側の計算結果が破壊されることがあります。',
-  code: `// ===================================================
+  code: `
+// ===================================================
 // 【修正位置】ISR 関数の宣言（IRAM_ATTR を追加）
 // ===================================================
 
@@ -1738,7 +1883,18 @@ void IRAM_ATTR myISR() {
 }
 
 // 定数は DRAM_ATTR で RAM に置く
-static const DRAM_ATTR uint8_t CMD = 0xAA;`
+static const DRAM_ATTR uint8_t CMD = 0xAA;
+void setup() {
+  Serial.begin(115200);
+  delay(100);
+  // 上記の関数を呼び出してテスト
+  Serial.println("[DIAG] Setup complete");
+}
+
+void loop() {
+  delay(1000);
+}
+`
 },
 
 r_array_oob: {
@@ -1751,7 +1907,8 @@ r_array_oob: {
     '境界チェックを明示的に追加する',
     'memcpy の長さが src/dst の実際のサイズを超えていないか確認する'
   ],
-  code: `// ===================================================
+  code: `
+// ===================================================
 // 【修正位置】配列アクセス箇所に境界チェックを追加
 // ===================================================
 
@@ -1781,7 +1938,18 @@ void safeCopy(uint8_t *dst, const uint8_t *src, size_t len) {
     len = maxLen;
   }
   memcpy(dst, src, len);
-}`
+}
+void setup() {
+  Serial.begin(115200);
+  delay(100);
+  // 上記の関数を呼び出してテスト
+  Serial.println("[DIAG] Setup complete");
+}
+
+void loop() {
+  delay(1000);
+}
+`
 },
 
 r_ptr_corruption: {
@@ -1794,7 +1962,8 @@ r_ptr_corruption: {
     'ポインタ演算の単位（バイト/要素）を確認する',
     'struct のサイズが想定通りか sizeof で確認する'
   ],
-  code: `// ===================================================
+  code: `
+// ===================================================
 // デバッグ：ポインタとサイズの確認
 // ===================================================
 
@@ -1811,7 +1980,18 @@ void debugPointer() {
   Serial.printf("[DBG] &data = 0x%08X\\n", (uint32_t)&data);
   Serial.printf("[DBG] &data.timestamp = 0x%08X\\n", (uint32_t)&data.timestamp);
   // expected offset: 8 bytes (float+float)
-}`
+}
+void setup() {
+  Serial.begin(115200);
+  delay(100);
+  // 上記の関数を呼び出してテスト
+  Serial.println("[DIAG] Setup complete");
+}
+
+void loop() {
+  delay(1000);
+}
+`
 },
 
 r_deadlock: {
@@ -1825,7 +2005,8 @@ r_deadlock: {
     'Mutex のネスト（1つ保持しながら別の Mutex を取得）を避ける設計にする'
   ],
   warn: 'Give を忘れた場合も同じ症状になります。エラーパス・early return で Give を忘れていないか確認してください。',
-  code: `// ===================================================
+  code: `
+// ===================================================
 // STEP 1: グローバル変数として宣言
 // ===================================================
 SemaphoreHandle_t mtxA = NULL;
@@ -1869,7 +2050,12 @@ void taskB_fixed(void *pv) {
     xSemaphoreGive(mtxB); xSemaphoreGive(mtxA); // 逆順で解放
     vTaskDelay(10);
   }
-}`
+}
+
+void loop() {
+  vTaskDelay(portMAX_DELAY); // setup()内でタスク起動済み
+}
+`
 },
 
 r_semaphore_bug: {
@@ -1882,7 +2068,8 @@ r_semaphore_bug: {
     '生成は xTaskCreateUniversal より前に行う',
     '全てのパスで Take と Give が対になるようにする'
   ],
-  code: `// ===================================================
+  code: `
+// ===================================================
 // STEP 1: グローバル変数として宣言
 // ===================================================
 SemaphoreHandle_t sem = NULL; // NULL で初期化必須
@@ -1929,7 +2116,12 @@ void safeUse(void *pv) {
     }
     vTaskDelay(pdMS_TO_TICKS(100));
   }
-}`
+}
+
+void loop() {
+  vTaskDelay(portMAX_DELAY); // setup()内でタスク起動済み
+}
+`
 },
 
 r_task_state_check: {
@@ -2003,7 +2195,8 @@ r_priority_inversion: {
     'バイナリ Semaphore は優先度継承しないため代わりに Mutex を使う',
     'タスク優先度の設計を見直す（高・中・低の3段階が基本）'
   ],
-  code: `// ===================================================
+  code: `
+// ===================================================
 // STEP 1: グローバル変数として宣言
 // ===================================================
 // Mutex はプライオリティ継承を持つ（Binary Semaphore とは異なる）
@@ -2029,7 +2222,12 @@ void lowPrioTask(void *pv) {
     xSemaphoreGive(resMtx);
     vTaskDelay(pdMS_TO_TICKS(500));
   }
-}`
+}
+
+void loop() {
+  vTaskDelay(portMAX_DELAY); // setup()内でタスク起動済み
+}
+`
 },
 
 r_heap_leak: {
@@ -2042,7 +2240,13 @@ r_heap_leak: {
     'エラー時の early return パスで free を忘れないようにする',
     '定期的に ESP.getFreeHeap() でヒープ残量を監視する'
   ],
-  code: `// ===================================================
+  code: `
+void setup() {
+  Serial.begin(115200);
+  delay(100);
+}
+
+// ===================================================
 // 【挿入位置】ヒープ監視: loop() の先頭 または vTaskDelay の直前
 // デバッグ用：削除可能
 // ===================================================
@@ -2080,7 +2284,8 @@ void processData() {
   free(buf); // エラーの有無に関わらず解放
   buf = NULL; // 解放後は NULL にする（二重 free 防止）
   (void)ok;
-}`
+}
+`
 },
 
 r_heap_leak_cpp: {
@@ -2092,7 +2297,8 @@ r_heap_leak_cpp: {
     'new には必ず対応する delete（または delete[]）を記述する',
     'スマートポインタ（std::unique_ptr）の使用を検討する'
   ],
-  code: `// ===================================================
+  code: `
+// ===================================================
 // 【修正位置】new/delete の使用箇所
 // ===================================================
 
@@ -2119,7 +2325,18 @@ void goodArrayAlloc() {
   memset(arr, 0, 256);
   delete[] arr; // [] が必要
   arr = nullptr;
-}`
+}
+void setup() {
+  Serial.begin(115200);
+  delay(100);
+  // 上記の関数を呼び出してテスト
+  Serial.println("[DIAG] Setup complete");
+}
+
+void loop() {
+  delay(1000);
+}
+`
 },
 
 r_task_leak: {
@@ -2132,7 +2349,13 @@ r_task_leak: {
     '動的に生成・削除を繰り返す場合はタスクハンドルを管理する',
     '可能な限り固定数のタスクを使う設計にする'
   ],
-  code: `// ===================================================
+  code: `
+void setup() {
+  Serial.begin(115200);
+  delay(100);
+}
+
+// ===================================================
 // 【挿入位置】タスク生成・削除の管理
 // ===================================================
 
@@ -2162,7 +2385,8 @@ void loop() {
     prevCount = count;
   }
   vTaskDelay(pdMS_TO_TICKS(1000));
-}`
+}
+`
 },
 
 r_heap_fragment: {
@@ -2178,7 +2402,13 @@ r_heap_fragment: {
     '【中級者向け】断片化の深刻度 = Free - MaxAllocBlock が大きいほど断片化が進んでいる'
   ],
   info: '【String.reserve() の効果】str.reserve(128) を呼ぶと、最初から 128 バイトのバッファを確保します。以降 128 バイト以内の += 操作では再アロケーションが発生しません。ただし reserve() 自体もヒープを消費するため、過大なサイズは逆効果です。',
-  code: `// ===================================================
+  code: `
+void setup() {
+  Serial.begin(115200);
+  delay(100);
+}
+
+// ===================================================
 // 【挿入位置】loop() の先頭 / vTaskDelay の直前
 // デバッグ用：削除可能
 // ===================================================
@@ -2221,7 +2451,8 @@ void buildMessageFast() {
   snprintf(buf, sizeof(buf), "Temp: %.1f Hum: %.1f",
     temperature, humidity);
   Serial.println(buf);
-}`
+}
+`
 },
 
 r_string_frag: {
@@ -2233,7 +2464,8 @@ r_string_frag: {
     'String の代わりに char 配列 + snprintf/strcat を使う',
     '文字列を連結する場合は最初に snprintf で1回で作る'
   ],
-  code: `// ===================================================
+  code: `
+// ===================================================
 // 【修正位置】String を使っている箇所
 // ===================================================
 
@@ -2257,7 +2489,18 @@ void goodString() {
 // Serial.printf を直接使う（最もシンプル）
 void bestString() {
   Serial.printf("Temp: %.1f Hum: %.1f\\n", temperature, humidity);
-}`
+}
+void setup() {
+  Serial.begin(115200);
+  delay(100);
+  // 上記の関数を呼び出してテスト
+  Serial.println("[DIAG] Setup complete");
+}
+
+void loop() {
+  delay(1000);
+}
+`
 },
 
 r_stack_monitor: {
@@ -2265,7 +2508,8 @@ r_stack_monitor: {
   severity: 'medium',
   title: 'スタック侵食の監視',
   cause: 'タスクのスタックが徐々に消費されていき、最終的にスタックオーバーフローになります。HighWaterMark を定期監視して傾向を確認します。',
-  code: `// ===================================================
+  code: `
+// ===================================================
 // 【挿入位置】タスク内の vTaskDelay の直前
 // デバッグ用：削除可能
 // ===================================================
@@ -2292,7 +2536,18 @@ void stackMonitorTask(void *pv) {
     }
     vTaskDelay(pdMS_TO_TICKS(5000)); // 5秒ごと
   }
-}`
+}
+
+void setup() {
+  Serial.begin(115200);
+  delay(100);
+  xTaskCreateUniversal(stackMonitorTask, "stackMonitorTask", 4096, NULL, 1, NULL, tskNO_AFFINITY);
+}
+
+void loop() {
+  vTaskDelay(portMAX_DELAY);
+}
+`
 },
 
 r_timing_observer: {
@@ -2304,7 +2559,8 @@ r_timing_observer: {
     'esp_timer_get_time() でマイクロ秒精度の計測ができる',
     'GPIO を High/Low にしてロジアナ代わりに使う方法も有効'
   ],
-  code: `// ===================================================
+  code: `
+// ===================================================
 // 【挿入位置】計測したい処理の前後に挿入
 // デバッグ用：削除可能
 // ===================================================
@@ -2338,7 +2594,18 @@ void myTask(void *pv) {
 //   digitalWrite(DBG_PIN, HIGH); // <- ここから
 //   heavyWork();
 //   digitalWrite(DBG_PIN, LOW);  // <- ここまで
-// }`
+// }
+
+void setup() {
+  Serial.begin(115200);
+  delay(100);
+  xTaskCreateUniversal(myTask, "myTask", 4096, NULL, 1, NULL, tskNO_AFFINITY);
+}
+
+void loop() {
+  vTaskDelay(portMAX_DELAY);
+}
+`
 },
 
 r_wifi_connect: {
@@ -2351,7 +2618,8 @@ r_wifi_connect: {
     '切断時に自動再接続するイベントハンドラを実装する',
     'WiFi.setTxPower(WIFI_POWER_19_5dBm) で送信電力を最大にする'
   ],
-  code: `// ===================================================
+  code: `
+// ===================================================
 // 【挿入位置】setup() 内の WiFi.begin() の前後
 // ===================================================
 
@@ -2378,7 +2646,12 @@ void setup() {
   WiFi.setTxPower(WIFI_POWER_19_5dBm); // 送信電力最大
   WiFi.begin(SSID, PASS);
   // ---------------------------------------------
-}`
+}
+
+void loop() {
+  vTaskDelay(portMAX_DELAY); // setup()内でタスク起動済み
+}
+`
 },
 
 r_udp_arp: {
@@ -2429,7 +2702,8 @@ r_udp_sleep: {
   fix: [
     'WiFi.setSleep(false) で Modem Sleep を無効にする'
   ],
-  code: `// ===================================================
+  code: `
+// ===================================================
 // 【挿入位置】setup() の WiFi.begin() の直前
 // ===================================================
 void setup() {
@@ -2438,7 +2712,12 @@ void setup() {
   WiFi.begin(SSID, PASS);
   while (WiFi.status() != WL_CONNECTED) delay(500);
   // v 既存のコードはここより下（変更不要）
-}`
+}
+
+void loop() {
+  vTaskDelay(portMAX_DELAY); // setup()内でタスク起動済み
+}
+`
 },
 
 r_udp_leak: {
@@ -2486,14 +2765,20 @@ r_wifi_perf: {
     'WiFi.setTxPower(WIFI_POWER_19_5dBm) で送信電力を最大化する',
     'チャンネル干渉を避けるためルーターのチャンネルを変える（1,6,11 が推奨）'
   ],
-  code: `// ===================================================
+  code: `
+// ===================================================
 // 【挿入位置】setup() の WiFi.begin() 前
 // ===================================================
 void setup() {
   WiFi.setSleep(false);
   WiFi.setTxPower(WIFI_POWER_19_5dBm);
   WiFi.begin(SSID, PASS);
-}`
+}
+
+void loop() {
+  vTaskDelay(portMAX_DELAY); // setup()内でタスク起動済み
+}
+`
 },
 
 r_wifi_degradation: {
@@ -2505,7 +2790,13 @@ r_wifi_degradation: {
     '切断検出時に WiFi.disconnect() -> WiFi.begin() で再初期化する',
     'タイムアウト内に再接続できない場合は ESP.restart() でリセットする'
   ],
-  code: `// ===================================================
+  code: `
+void setup() {
+  Serial.begin(115200);
+  delay(100);
+}
+
+// ===================================================
 // 【挿入位置】loop() の先頭
 // デバッグ用：削除可能
 // ===================================================
@@ -2529,7 +2820,8 @@ void loop() {
   // ---------------------------------------------
 
   // v 既存のコードはここより下（変更不要）
-}`
+}
+`
 },
 
 r_adc_wifi: {
@@ -2542,7 +2834,13 @@ r_adc_wifi: {
     'ADC1 もノイズが大きいため、複数回読んで平均を取る',
     '精度が必要な場合は外付け ADC（ADS1115 等）を使う'
   ],
-  code: `// ===================================================
+  code: `
+void setup() {
+  Serial.begin(115200);
+  delay(100);
+}
+
+// ===================================================
 // 【修正位置】analogRead の箇所を平均化に変更
 // ===================================================
 
@@ -2567,7 +2865,8 @@ void loop() {
   Serial.printf("[ADC] val=%d (%.2fV)\\n",
     val, val * 3.3f / 4095.0f);
   delay(100);
-}`
+}
+`
 },
 
 r_i2c_notfound: {
@@ -2580,7 +2879,8 @@ r_i2c_notfound: {
     'I2C スキャンでアドレスを確認する',
     'デバイスへの電源が正しく供給されているか確認する'
   ],
-  code: `// ===================================================
+  code: `
+// ===================================================
 // 【挿入位置】setup() 内（診断用コード）
 // デバッグ用：問題解決後は削除可能
 // ===================================================
@@ -2612,7 +2912,12 @@ void setup() {
     }
   }
   // ---------------------------------------------
-}`
+}
+
+void loop() {
+  vTaskDelay(portMAX_DELAY); // setup()内でタスク起動済み
+}
+`
 },
 
 r_i2c_intermittent: {
@@ -2625,7 +2930,8 @@ r_i2c_intermittent: {
     'クロック速度を 400kHz から 100kHz に落とす',
     'プルアップ抵抗を強くする（400kHz なら 2.2kOhm〜4.7kOhm）'
   ],
-  code: `// ===================================================
+  code: `
+// ===================================================
 // 【修正位置】setup() の Wire.begin() の直後
 // ===================================================
 void setup() {
@@ -2650,7 +2956,12 @@ void i2cSafe(uint8_t addr, uint8_t reg, uint8_t val) {
     // デバッグ用：削除可能
     Serial.printf("[I2C] Error addr=0x%02X err=%d\\n", addr, err);
   }
-}`
+}
+
+void loop() {
+  vTaskDelay(portMAX_DELAY); // setup()内でタスク起動済み
+}
+`
 },
 
 r_i2c_addr_conflict: {
@@ -2663,7 +2974,8 @@ r_i2c_addr_conflict: {
     'I2C マルチプレクサ（TCA9548A 等）を使う',
     'ESP32 の第2 I2C バス（Wire1）を使う'
   ],
-  code: `// ===================================================
+  code: `
+// ===================================================
 // 第2 I2C バスを使う例
 // ===================================================
 void setup() {
@@ -2673,24 +2985,59 @@ void setup() {
 
   Wire.setClock(100000);
   Wire1.setClock(100000);
-}`
+}
+
+void loop() {
+  vTaskDelay(portMAX_DELAY); // setup()内でタスク起動済み
+}
+`
 },
 
 r_i2c_clock: {
   type: 'result',
   severity: 'medium',
-  title: 'I2C クロック速度の不一致',
-  cause: 'バスに接続された全デバイスの最低クロック速度に合わせる必要があります。100kHz デバイスと 400kHz デバイスが混在する場合は 100kHz にします。',
+  title: 'I2C クロック速度の不一致・混在デバイス',
+  cause: 'I2C バスは全デバイスが同じ SCL クロックを共有します。最大通信速度の異なるデバイスを同一バスに接続する場合、バス全体を最も遅いデバイスの最大速度以下に設定しなければなりません。例えば 100kHz 対応デバイスと 400kHz 対応デバイスを同一バスに接続した場合、バスは 100kHz で動作させる必要があります。400kHz で通信すると 100kHz デバイスが誤動作・ハングします。',
   fix: [
-    'バス全体を最も遅いデバイスのクロックに合わせる',
-    '100kHz->4.7kOhm〜10kOhm、400kHz->2.2kOhm〜4.7kOhm のプルアップを使う'
+    '【重要】異なる最大速度のデバイスを同一バスに接続する場合、バス全体を最も遅いデバイスの速度に合わせる。100kHz デバイスと 400kHz デバイスが混在する場合は必ず 100kHz に設定する',
+    '速度の速いデバイスだけ高速で通信したい場合は同一バスでは実現できない。Wire1（第2 I2C バス）を使ってバスを分離するか、I2C マルチプレクサ（TCA9548A 等）でデバイスを切り替える',
+    'クロック速度を変更した場合はプルアップ抵抗も合わせて変更する（100kHz: 4.7kOhm〜10kOhm、400kHz: 2.2kOhm〜4.7kOhm）',
+    'デバイスのデータシートで最大クロック速度（I2C Max Clock Frequency）を必ず確認する'
   ],
-  code: `// ===================================================
-// 【修正位置】Wire.begin() の直後
-// ===================================================
-Wire.begin(21, 22);
-Wire.setClock(100000); // <- 100kHz に設定（最も遅いデバイスに合わせる）
-// Wire.setClock(400000); // 400kHz（全デバイスが対応している場合のみ）`
+  info: '【I2C バス速度の標準規格】Standard Mode: 100kHz / Fast Mode: 400kHz / Fast Mode Plus: 1MHz。同一バス上の全デバイスが同じ SCL を見るため、個別に速度を変えることは原理的に不可能です。速度の異なるデバイスを混在させたい場合の選択肢は（1）最低速度に統一する（2）バスを分離する（Wire / Wire1）（3）マルチプレクサで時分割する、の3つです。',
+  code: `
+void setup() {
+  Serial.begin(115200);
+  delay(100);
+  // ===================================================
+  // 【修正位置】Wire.begin() の直後
+  // ===================================================
+
+  // [NG] 400kHz デバイスと 100kHz デバイスが同一バスに混在 -> 100kHz デバイスが誤動作
+  Wire.begin(21, 22);
+  Wire.setClock(400000); // NG: 100kHz デバイスには速すぎる
+
+  // [OK] バス全体を最も遅いデバイスの速度に合わせる
+  Wire.begin(21, 22);
+  Wire.setClock(100000); // OK: 全デバイスが対応できる速度に統一
+
+  // [OK] 速度を分離したい場合: バスを2系統に分ける
+  Wire.begin(21, 22);   // Wire  -> 100kHz デバイス専用
+  Wire.setClock(100000);
+
+  Wire1.begin(33, 32);  // Wire1 -> 400kHz デバイス専用
+  Wire1.setClock(400000);
+
+  // [OK] マルチプレクサで分離する場合（TCA9548A）
+  // チャンネル0 -> 100kHz デバイス
+  // チャンネル1 -> 400kHz デバイス
+  // マルチプレクサ切り替え後に setClock() で速度を変更する
+}
+
+void loop() {
+  delay(1000);
+}
+`
 },
 
 r_i2c_voltage: {
@@ -2715,7 +3062,8 @@ r_spi_garbage: {
     'CS の Hold 時間のために delayMicroseconds(1) を CS 操作後に追加する',
     'クロック速度を最大値の 80% 以下に下げる'
   ],
-  code: `// ===================================================
+  code: `
+// ===================================================
 // 【修正位置】SPI 通信の設定部分
 // ===================================================
 
@@ -2738,7 +3086,18 @@ void spiTransfer(uint8_t *data, size_t len) {
   delayMicroseconds(1);  // CS ホールド時間
   digitalWrite(CS_PIN, HIGH);
   SPI.endTransaction();
-}`
+}
+void setup() {
+  Serial.begin(115200);
+  delay(100);
+  // 上記の関数を呼び出してテスト
+  Serial.println("[DIAG] Setup complete");
+}
+
+void loop() {
+  delay(1000);
+}
+`
 },
 
 r_spi_mode: {
@@ -2750,7 +3109,8 @@ r_spi_mode: {
     'データシートの "Clock Polarity" と "Clock Phase" を確認する',
     '4つのモードを順番に試してみる'
   ],
-  code: `// ===================================================
+  code: `
+// ===================================================
 // 【修正位置】SPISettings のモード設定
 // ===================================================
 
@@ -2774,48 +3134,91 @@ void testAllSPIModes() {
     Serial.printf("[SPI] %s: 0x%02X 0x%02X 0x%02X 0x%02X\\n",
       names[i], buf[0], buf[1], buf[2], buf[3]);
   }
-}`
+}
+void setup() {
+  Serial.begin(115200);
+  delay(100);
+  // 上記の関数を呼び出してテスト
+  Serial.println("[DIAG] Setup complete");
+}
+
+void loop() {
+  delay(1000);
+}
+`
 },
 
 r_spi_multi: {
   type: 'result',
   severity: 'medium',
-  title: '複数 SPI デバイスの競合',
-  cause: '複数デバイスが同じ CS を使っているか、異なる SPISettings が混在して正しく切り替わっていません。',
+  title: '複数 SPI デバイスの競合（速度・モード切り替え）',
+  cause: '複数の異なる SPI デバイスを使う場合、デバイスごとにクロック速度・モード（CPOL/CPHA）が異なります。beginTransaction(SPISettings) でデバイス切り替えのたびに設定を切り替える必要があります。さらに複数タスクから SPI バスを使う場合、Mutex で排他制御しないと設定が混在してデータ化けが発生します。',
   fix: [
-    'デバイスごとに別の CS ピンを使う',
-    'beginTransaction / endTransaction を確実にペアにする'
+    'デバイスごとに個別の SPISettings を定義し、beginTransaction() で都度切り替える',
+    'beginTransaction() / endTransaction() を必ずペアにする（endTransaction なしで次の beginTransaction を呼ぶと設定が混在する）',
+    '【マルチタスク必須】複数タスクから SPI バスを使う場合は必ず Mutex で保護する。beginTransaction の前に Mutex を取得し endTransaction の後に解放する',
+    '速度切り替え忘れに注意：タスクAが高速デバイスと通信中にタスクBが低速デバイスへ切り替えを忘れると低速デバイスが誤動作する',
+    '2系統のデバイスが完全に分離している場合は VSPI / HSPI を別々に使うと Mutex 管理が単純になる'
   ],
-  code: `// ===================================================
-// 複数 SPI デバイスの正しい使い方
+  info: '【beginTransaction の役割】beginTransaction(SPISettings) は（1）クロック速度（2）ビット順（3）SPI モード（CPOL/CPHA）をまとめて切り替えます。endTransaction を呼ぶまでそのデバイスの設定が維持されます。マルチタスク環境では Mutex で保護しないと、あるタスクの通信中に別タスクが beginTransaction を呼んで設定を上書きしてしまいます。',
+  code: `
+// ===================================================
+// 複数 SPI デバイスの正しい使い方（マルチタスク対応）
 // ===================================================
 
-// デバイスごとに別の CS ピン・別の SPISettings
+// デバイスごとに個別の CS ピン・SPISettings を定義
 #define CS_DEV1 5
 #define CS_DEV2 15
 
-SPISettings dev1Settings(4000000, MSBFIRST, SPI_MODE0); // デバイス1
-SPISettings dev2Settings(1000000, MSBFIRST, SPI_MODE3); // デバイス2
+SPISettings dev1Settings(4000000, MSBFIRST, SPI_MODE0); // デバイス1: 4MHz
+SPISettings dev2Settings(1000000, MSBFIRST, SPI_MODE3); // デバイス2: 1MHz 別モード
 
-void readDev1() {
-  SPI.beginTransaction(dev1Settings); // <- 必ずペアで
-  digitalWrite(CS_DEV1, LOW);
-  uint8_t result = SPI.transfer(0x00);
-  digitalWrite(CS_DEV1, HIGH);
-  SPI.endTransaction(); // <- ここで解放
+// マルチタスクで共有する場合は Mutex が必須
+SemaphoreHandle_t spiMutex = NULL;
+
+void setup() {
+  spiMutex = xSemaphoreCreateMutex();
+  SPI.begin();
 }
 
-void readDev2() {
-  SPI.beginTransaction(dev2Settings); // <- 別の設定で再開
-  digitalWrite(CS_DEV2, LOW);
-  uint8_t result = SPI.transfer(0x00);
-  digitalWrite(CS_DEV2, HIGH);
-  SPI.endTransaction();
+// [OK] タスクA: デバイス1と通信
+void taskA(void *pv) {
+  while (1) {
+    if (xSemaphoreTake(spiMutex, pdMS_TO_TICKS(100)) == pdTRUE) {
+      SPI.beginTransaction(dev1Settings); // 速度・モードを dev1 に切り替え
+      digitalWrite(CS_DEV1, LOW);
+      SPI.transfer(0xAB);
+      digitalWrite(CS_DEV1, HIGH);
+      SPI.endTransaction();              // 必ず解放
+      xSemaphoreGive(spiMutex);          // Mutex 解放は endTransaction の後
+    }
+    vTaskDelay(pdMS_TO_TICKS(10));
+  }
 }
 
-// 2系統が必要な場合
-SPIClass vspi(VSPI); // デフォルト: SCK=18, MISO=19, MOSI=23
-SPIClass hspi(HSPI); // デフォルト: SCK=14, MISO=12, MOSI=13`
+// [OK] タスクB: デバイス2と通信（異なる速度・モード）
+void taskB(void *pv) {
+  while (1) {
+    if (xSemaphoreTake(spiMutex, pdMS_TO_TICKS(100)) == pdTRUE) {
+      SPI.beginTransaction(dev2Settings); // 速度・モードを dev2 に切り替え（重要）
+      digitalWrite(CS_DEV2, LOW);
+      SPI.transfer(0xCD);
+      digitalWrite(CS_DEV2, HIGH);
+      SPI.endTransaction();
+      xSemaphoreGive(spiMutex);
+    }
+    vTaskDelay(pdMS_TO_TICKS(20));
+  }
+}
+
+// [参考] 2系統を完全分離する場合（Mutex 管理が単純になる）
+SPIClass vspi(VSPI); // SCK=18, MISO=19, MOSI=23 -> デバイス1専用
+SPIClass hspi(HSPI); // SCK=14, MISO=25, MOSI=13 -> デバイス2専用（GPIO12回避）
+
+void loop() {
+  vTaskDelay(portMAX_DELAY); // setup()内でタスク起動済み
+}
+`
 },
 
 r_spi_gpio12: {
@@ -2827,7 +3230,8 @@ r_spi_gpio12: {
     'HSPI の MISO ピンを GPIO12 以外に変更する（例: GPIO25）',
     'SPI.begin(SCK, MISO, MOSI, SS) で明示的にピンを指定する'
   ],
-  code: `// ===================================================
+  code: `
+// ===================================================
 // 【修正位置】SPI.begin() の呼び出し
 // ===================================================
 
@@ -2839,7 +3243,12 @@ void setup() {
 
   // OK: MISO を GPIO12 以外に変更
   hspi.begin(14, 25, 13, SS); // SCK=14, MISO=25, MOSI=13
-}`
+}
+
+void loop() {
+  vTaskDelay(portMAX_DELAY); // setup()内でタスク起動済み
+}
+`
 },
 
 r_spi_clock: {
@@ -2851,8 +3260,18 @@ r_spi_clock: {
     'クロック速度をデバイスの仕様書の最大値の 80% 以下に設定する',
     '1MHz から始めて徐々に上げながら動作確認する'
   ],
-  code: `SPISettings safe(1000000, MSBFIRST, SPI_MODE0); // 1MHz から試す
-// 動作確認後に 4MHz -> 8MHz と上げていく`
+  code: `
+void setup() {
+  Serial.begin(115200);
+  delay(100);
+  SPISettings safe(1000000, MSBFIRST, SPI_MODE0); // 1MHz から試す
+  // 動作確認後に 4MHz -> 8MHz と上げていく
+}
+
+void loop() {
+  delay(1000);
+}
+`
 },
 
 r_uart_baud: {
@@ -2865,20 +3284,30 @@ r_uart_baud: {
     '誤差ゼロのボーレートを使う：9600 / 19200 / 38400 / 115200 / 230400 / 921600',
     '57600 は長距離・高ノイズ環境では問題が出ることがある'
   ],
-  code: `// ===================================================
-// 【修正位置】Serial.begin() のボーレート設定
-// ===================================================
+  code: `
+void setup() {
+  Serial.begin(115200);
+  delay(100);
+  // ===================================================
+  // 【修正位置】Serial.begin() のボーレート設定
+  // ===================================================
 
-// 誤差ゼロのボーレート（推奨）
-// 9600, 19200, 38400, 115200, 230400, 460800, 921600
+  // 誤差ゼロのボーレート（推奨）
+  // 9600, 19200, 38400, 115200, 230400, 460800, 921600
 
-// APB 80MHz との割り切り誤差
-// 57600   -> 約 0.8% 誤差（通常は許容範囲だが長距離では注意）
-// 76800   -> 約 1.0% 誤差
-// 256000  -> 約 0.16% 誤差
+  // APB 80MHz との割り切り誤差
+  // 57600   -> 約 0.8% 誤差（通常は許容範囲だが長距離では注意）
+  // 76800   -> 約 1.0% 誤差
+  // 256000  -> 約 0.16% 誤差
 
-Serial2.begin(115200, SERIAL_8N1, RX_PIN, TX_PIN); // 誤差ゼロ
-// Serial2.begin(57600, ...); <- 長距離では避ける`
+  Serial2.begin(115200, SERIAL_8N1, RX_PIN, TX_PIN); // 誤差ゼロ
+  // Serial2.begin(57600, ...); <- 長距離では避ける
+}
+
+void loop() {
+  delay(1000);
+}
+`
 },
 
 r_uart_format: {
@@ -2891,22 +3320,32 @@ r_uart_format: {
     '現代機器はほぼ 8N1（8bit, ノーパリティ, 1ストップ）'
   ],
   warn: '7bit 送信->8bit 受信の場合、連続受信でフレーミングエラーが発生します。単発では症状が出ないので注意。',
-  code: `// ===================================================
-// データフォーマット設定一覧
-// ===================================================
+  code: `
+void setup() {
+  Serial.begin(115200);
+  delay(100);
+  // ===================================================
+  // データフォーマット設定一覧
+  // ===================================================
 
-// SERIAL_8N1: 8データビット, ノーパリティ, 1ストップ（最も一般的）
-Serial2.begin(9600, SERIAL_8N1, RX_PIN, TX_PIN);
+  // SERIAL_8N1: 8データビット, ノーパリティ, 1ストップ（最も一般的）
+  Serial2.begin(9600, SERIAL_8N1, RX_PIN, TX_PIN);
 
-// SERIAL_7E1: 7データビット, 偶数パリティ, 1ストップ（産業機器に多い）
-// Serial2.begin(9600, SERIAL_7E1, RX_PIN, TX_PIN);
+  // SERIAL_7E1: 7データビット, 偶数パリティ, 1ストップ（産業機器に多い）
+  // Serial2.begin(9600, SERIAL_7E1, RX_PIN, TX_PIN);
 
-// SERIAL_8N2: 8データビット, ノーパリティ, 2ストップ（古い機器）
-// Serial2.begin(9600, SERIAL_8N2, RX_PIN, TX_PIN);
+  // SERIAL_8N2: 8データビット, ノーパリティ, 2ストップ（古い機器）
+  // Serial2.begin(9600, SERIAL_8N2, RX_PIN, TX_PIN);
 
-// データビット不一致の症状
-// 7bit送信->8bit受信: MSB が常に1になる（0x41->0xC1）
-// ボーレート不一致: サンプリングポイントがずれる（0x41->0x21 等）`
+  // データビット不一致の症状
+  // 7bit送信->8bit受信: MSB が常に1になる（0x41->0xC1）
+  // ボーレート不一致: サンプリングポイントがずれる（0x41->0x21 等）
+}
+
+void loop() {
+  delay(1000);
+}
+`
 },
 
 r_uart_framing: {
@@ -2918,7 +3357,13 @@ r_uart_framing: {
     'タイムアウト検出でパケット境界を判定する',
     '固定ヘッダバイトで同期を取る方式を実装する'
   ],
-  code: `// ===================================================
+  code: `
+void setup() {
+  Serial.begin(115200);
+  delay(100);
+}
+
+// ===================================================
 // 【挿入位置】loop() 内または受信タスク内
 // ===================================================
 
@@ -2954,7 +3399,8 @@ void syncReceive() {
       Serial2.read(); // ヘッダでなければ1バイト捨てて再同期
     }
   }
-}`
+}
+`
 },
 
 r_uart1_pins: {
@@ -2966,19 +3412,29 @@ r_uart1_pins: {
     'Serial1 は必ず別のピンに再マッピングする',
     '外部機器との通信には Serial2 を使う方が簡単'
   ],
-  code: `// ===================================================
-// 【修正位置】Serial1.begin() の呼び出し
-// ===================================================
+  code: `
+void setup() {
+  Serial.begin(115200);
+  delay(100);
+  // ===================================================
+  // 【修正位置】Serial1.begin() の呼び出し
+  // ===================================================
 
-// [NG] NG: デフォルトピン（GPIO9/10）は Flash と競合
-// Serial1.begin(9600);
+  // [NG] NG: デフォルトピン（GPIO9/10）は Flash と競合
+  // Serial1.begin(9600);
 
-// OK: ピンを明示的に再マッピング
-Serial1.begin(9600, SERIAL_8N1, 25, 26); // RX=25, TX=26
+  // OK: ピンを明示的に再マッピング
+  Serial1.begin(9600, SERIAL_8N1, 25, 26); // RX=25, TX=26
 
-// より推奨: Serial2 を外部機器との通信に使う
-// UART2 デフォルト: RX=GPIO16, TX=GPIO17
-Serial2.begin(9600, SERIAL_8N1, 16, 17);`
+  // より推奨: Serial2 を外部機器との通信に使う
+  // UART2 デフォルト: RX=GPIO16, TX=GPIO17
+  Serial2.begin(9600, SERIAL_8N1, 16, 17);
+}
+
+void loop() {
+  delay(1000);
+}
+`
 },
 
 r_uart0_boot: {
@@ -2990,7 +3446,8 @@ r_uart0_boot: {
     'UART0（Serial）はデバッグ専用にして、外部機器との通信には Serial2 を使う',
     'または Serial.begin() 後に一定時間待ってから受信バッファをフラッシュする'
   ],
-  code: `// ===================================================
+  code: `
+// ===================================================
 // 【修正位置】setup() の Serial.begin() 後
 // ===================================================
 void setup() {
@@ -3002,7 +3459,12 @@ void setup() {
 
   // 外部機器との通信は Serial2 を推奨
   Serial2.begin(9600, SERIAL_8N1, 16, 17);
-}`
+}
+
+void loop() {
+  vTaskDelay(portMAX_DELAY); // setup()内でタスク起動済み
+}
+`
 },
 
 r_uart_gnd: {
@@ -3026,10 +3488,20 @@ r_uart_rx: {
     '送信側の TX を受信側の RX に接続する（交差接続）',
     'Serial.begin(baud, config, RX_PIN, TX_PIN) でピンを明示する'
   ],
-  code: `// 送信側 TX -> 受信側 RX（クロス接続）
-// ESP32 RX(16) <- 相手機器 TX
-// ESP32 TX(17) -> 相手機器 RX
-Serial2.begin(9600, SERIAL_8N1, 16, 17); // RX=16, TX=17`
+  code: `
+void setup() {
+  Serial.begin(115200);
+  delay(100);
+  // 送信側 TX -> 受信側 RX（クロス接続）
+  // ESP32 RX(16) <- 相手機器 TX
+  // ESP32 TX(17) -> 相手機器 RX
+  Serial2.begin(9600, SERIAL_8N1, 16, 17); // RX=16, TX=17
+}
+
+void loop() {
+  delay(1000);
+}
+`
 },
 
 r_uart_tx: {
@@ -3052,7 +3524,8 @@ r_uart_both: {
     'ループバックテスト（TX-RX を直結）でシリアル自体が動くか確認する',
     'ボーレートを再確認する'
   ],
-  code: `// ループバックテスト（TX-RX を短絡して自分に送信）
+  code: `
+// ループバックテスト（TX-RX を短絡して自分に送信）
 void loopbackTest() {
   Serial2.begin(9600, SERIAL_8N1, RX_PIN, TX_PIN);
   Serial2.print("LOOPBACK_TEST");
@@ -3064,7 +3537,18 @@ void loopbackTest() {
   } else {
     Serial.printf("[UART] Loopback FAIL: got '%s'\\n", recv.c_str());
   }
-}`
+}
+void setup() {
+  Serial.begin(115200);
+  delay(100);
+  // 上記の関数を呼び出してテスト
+  Serial.println("[DIAG] Setup complete");
+}
+
+void loop() {
+  delay(1000);
+}
+`
 },
 
 r_uart_xonxoff: {
@@ -3076,10 +3560,20 @@ r_uart_xonxoff: {
     'ハードウェアフロー制御（RTS/CTS）に切り替える',
     'ソフトウェアフロー制御はテキスト通信専用で使う'
   ],
-  code: `// ハードウェアフロー制御を使う場合
-// CTS/RTS ピンを setPins で設定
-Serial2.begin(9600, SERIAL_8N1, RX_PIN, TX_PIN);
-// Serial2.setPins(RX_PIN, TX_PIN, CTS_PIN, RTS_PIN);`
+  code: `
+void setup() {
+  Serial.begin(115200);
+  delay(100);
+  // ハードウェアフロー制御を使う場合
+  // CTS/RTS ピンを setPins で設定
+  Serial2.begin(9600, SERIAL_8N1, RX_PIN, TX_PIN);
+  // Serial2.setPins(RX_PIN, TX_PIN, CTS_PIN, RTS_PIN);
+}
+
+void loop() {
+  delay(1000);
+}
+`
 },
 
 r_uart_hw: {
@@ -3103,9 +3597,20 @@ r_ble_wifi_coexist: {
     'esp_coex_prefer_wifi() または esp_coex_prefer_bt() で優先度を設定する',
     '同時使用が必要な場合は ESP32 S3/C3 系の方が共存性能が高い'
   ],
-  code: `// Wi-Fi 優先にする場合（setup() 内に追加）
+  code: `
 #include "esp_coexist.h"
-esp_coex_prefer(ESP_COEX_PREFER_WIFI); // Wi-Fi 優先`
+
+void setup() {
+  Serial.begin(115200);
+  delay(100);
+  // Wi-Fi 優先にする場合（setup() 内に追加）
+  esp_coex_prefer(ESP_COEX_PREFER_WIFI); // Wi-Fi 優先
+}
+
+void loop() {
+  delay(1000);
+}
+`
 },
 
 r_ble_disconnect: {
@@ -3129,13 +3634,19 @@ r_ble_heap: {
     'PSRAM を搭載した ESP32 モジュールを使う',
     '不要な BLE サービスを無効化する'
   ],
-  code: `// ヒープ確認（BLE 初期化後に確認）
+  code: `
+// ヒープ確認（BLE 初期化後に確認）
 void setup() {
   Serial.begin(115200);
   BLEDevice::init("MyDevice");
   Serial.printf("[HEAP] After BLE init: %u bytes free\\n", ESP.getFreeHeap());
   // 10000バイト未満なら危険域
-}`
+}
+
+void loop() {
+  vTaskDelay(portMAX_DELAY); // setup()内でタスク起動済み
+}
+`
 },
 
 r_isr_bad_call: {
@@ -3156,7 +3667,8 @@ r_isr_bad_call: {
     '重い処理・Arduino API の呼び出しは全てタスク側（loop() または別タスク）で行う'
   ],
   warn: 'analogRead() は過去バージョンで ISR から呼び出すと例外が発生した実績があります。安全な関数に見えても Arduino API は原則として ISR 内での使用を想定していません。「動いているように見える」場合でも使用禁止です。',
-  code: `// ===================================================
+  code: `
+// ===================================================
 // ISR 内での禁止関数と正しい代替パターン
 // ===================================================
 
@@ -3191,7 +3703,18 @@ void myTask(void *pv) {
     isrValue = analogRead(34);   // OK: タスクコンテキストなら安全
     Serial.printf("ADC=%u\n", isrValue);
   }
-}`
+}
+
+void setup() {
+  Serial.begin(115200);
+  delay(100);
+  xTaskCreateUniversal(myTask, "myTask", 4096, NULL, 1, NULL, tskNO_AFFINITY);
+}
+
+void loop() {
+  vTaskDelay(portMAX_DELAY);
+}
+`
 },
 
 r_isr_heavy: {
@@ -3207,7 +3730,8 @@ r_isr_heavy: {
     'ISR スタック溢れは通常のスタックカナリアでは検出できない。クラッシュしても原因が分かりにくいため ISR を極力シンプルに保つことが最善策'
   ],
   info: '【ISR スタックの仕組み】ESP-IDF の ISR スタックはタスクスタックとは完全に別の領域に確保されます。定義元: components/freertos/Kconfig の CONFIG_FREERTOS_ISR_STACKSIZE（デフォルト 1536 バイト）。FreeRTOSConfig.h で #define configISR_STACK_SIZE CONFIG_FREERTOS_ISR_STACKSIZE として参照されます。デュアルコアの ESP32 では Core0/Core1 それぞれが独立した ISR スタックを持つため合計消費量は 2 倍になります。',
-  code: `// 高優先度ワーカータスク + ISR 通知パターン
+  code: `
+// 高優先度ワーカータスク + ISR 通知パターン
 TaskHandle_t isrWorker = NULL;
 
 void IRAM_ATTR fastISR() {
@@ -3227,7 +3751,12 @@ void workerTask(void *pv) {
 void setup() {
   xTaskCreateUniversal(workerTask, "isrWorker", 4096, NULL, 10, &isrWorker, tskNO_AFFINITY);
   attachInterrupt(digitalPinToInterrupt(PIN), fastISR, RISING);
-}`
+}
+
+void loop() {
+  vTaskDelay(portMAX_DELAY); // setup()内でタスク起動済み
+}
+`
 },
 
 r_isr_notification: {
@@ -3236,7 +3765,8 @@ r_isr_notification: {
   title: 'ISR からタスクへの通知（正しい実装）',
   cause: '既に正しい方向性です。ISR から Task Notification または Queue を使ってタスクに通知する実装を確認します。',
   tip: 'これは正しい設計パターンです。',
-  code: `// ISR -> Task Notification（最もシンプル・高速）
+  code: `
+// ISR -> Task Notification（最もシンプル・高速）
 TaskHandle_t taskHandle = NULL;
 
 void IRAM_ATTR myISR() {
@@ -3266,7 +3796,12 @@ void IRAM_ATTR dataISR() {
 void setup() {
   isrQueue = xQueueCreate(10, sizeof(uint32_t));
   xTaskCreateUniversal(myTask, "task", 2048, NULL, 5, &taskHandle, tskNO_AFFINITY);
-}`
+}
+
+void loop() {
+  vTaskDelay(portMAX_DELAY); // setup()内でタスク起動済み
+}
+`
 },
 
 r_floating_pin: {
@@ -3278,20 +3813,30 @@ r_floating_pin: {
     '入力ピンに INPUT_PULLUP または INPUT_PULLDOWN を設定する',
     '未使用ピンも同様にプルアップ/ダウンする'
   ],
-  code: `// ===================================================
-// 【修正位置】pinMode の設定
-// ===================================================
+  code: `
+void setup() {
+  Serial.begin(115200);
+  delay(100);
+  // ===================================================
+  // 【修正位置】pinMode の設定
+  // ===================================================
 
-// [NG] NG: INPUT のままではフロート
-pinMode(buttonPin, INPUT);
+  // [NG] NG: INPUT のままではフロート
+  pinMode(buttonPin, INPUT);
 
-// OK: 内部プルアップを使う（スイッチが GND に繋がっている場合）
-pinMode(buttonPin, INPUT_PULLUP);
+  // OK: 内部プルアップを使う（スイッチが GND に繋がっている場合）
+  pinMode(buttonPin, INPUT_PULLUP);
 
-// OK: 内部プルダウンを使う（スイッチが 3.3V に繋がっている場合）
-pinMode(buttonPin, INPUT_PULLDOWN);
+  // OK: 内部プルダウンを使う（スイッチが 3.3V に繋がっている場合）
+  pinMode(buttonPin, INPUT_PULLDOWN);
 
-// 注意: GPIO34〜39 は内部プルアップ/ダウンなし（外部抵抗が必要）`
+  // 注意: GPIO34〜39 は内部プルアップ/ダウンなし（外部抵抗が必要）
+}
+
+void loop() {
+  delay(1000);
+}
+`
 },
 
 r_abort_called: {
@@ -3347,7 +3892,8 @@ r_sleep_reset: {
     'esp_reset_reason() で ESP_RST_DEEPSLEEP を確認する',
     '復帰後に RTC メモリからデータを復元する'
   ],
-  code: `void setup() {
+  code: `
+void setup() {
   Serial.begin(115200);
   esp_reset_reason_t reason = esp_reset_reason();
   if (reason == ESP_RST_DEEPSLEEP) {
@@ -3356,7 +3902,12 @@ r_sleep_reset: {
   } else {
     Serial.println("[BOOT] Normal power-on");
   }
-}`
+}
+
+void loop() {
+  vTaskDelay(portMAX_DELAY); // setup()内でタスク起動済み
+}
+`
 },
 
 r_comms_timeout: {
@@ -3380,14 +3931,24 @@ r_queue_empty: {
     'portMAX_DELAY を適切なタイムアウトに変更する',
     '送信側のタスクが正常に動いているか確認する'
   ],
-  code: `// portMAX_DELAY の代わりにタイムアウトを設定
-SomeData data;
-if (xQueueReceive(myQueue, &data, pdMS_TO_TICKS(1000)) == pdTRUE) {
-  // データを処理
-} else {
-  Serial.println("[WARN] Queue receive timeout!");
-  // タイムアウト時の処理
-}`
+  code: `
+void setup() {
+  Serial.begin(115200);
+  delay(100);
+  // portMAX_DELAY の代わりにタイムアウトを設定
+  SomeData data;
+  if (xQueueReceive(myQueue, &data, pdMS_TO_TICKS(1000)) == pdTRUE) {
+    // データを処理
+  } else {
+    Serial.println("[WARN] Queue receive timeout!");
+    // タイムアウト時の処理
+  }
+}
+
+void loop() {
+  delay(1000);
+}
+`
 },
 
 r_loop_hang: {
@@ -3399,14 +3960,24 @@ r_loop_hang: {
     'ループにタイムアウト条件を追加する',
     '条件変数が別タスク・ISR から更新される場合は volatile を付ける'
   ],
-  code: `// タイムアウト付きループ
-uint32_t timeout = millis() + 5000; // 5秒タイムアウト
-while (!condition && millis() < timeout) {
-  vTaskDelay(pdMS_TO_TICKS(10));
+  code: `
+void setup() {
+  Serial.begin(115200);
+  delay(100);
+  // タイムアウト付きループ
+  uint32_t timeout = millis() + 5000; // 5秒タイムアウト
+  while (!condition && millis() < timeout) {
+    vTaskDelay(pdMS_TO_TICKS(10));
+  }
+  if (!condition) {
+    Serial.println("[WARN] Loop timed out!");
+  }
 }
-if (!condition) {
-  Serial.println("[WARN] Loop timed out!");
-}`
+
+void loop() {
+  delay(1000);
+}
+`
 },
 
 r_priority_zero: {
@@ -3429,16 +4000,26 @@ r_setup_comms_hang: {
     'WiFi 接続待ちにタイムアウトを設定する',
     'Wire.begin() 後にデバイスが応答しない場合のエラー処理を追加する'
   ],
-  code: `// WiFi 接続にタイムアウトを設定
-WiFi.begin(SSID, PASS);
-uint32_t t = millis();
-while (WiFi.status() != WL_CONNECTED) {
-  if (millis() - t > 10000) {
-    Serial.println("[WiFi] Connection timeout!");
-    break; // タイムアウト -> setup を継続
+  code: `
+void setup() {
+  Serial.begin(115200);
+  delay(100);
+  // WiFi 接続にタイムアウトを設定
+  WiFi.begin(SSID, PASS);
+  uint32_t t = millis();
+  while (WiFi.status() != WL_CONNECTED) {
+    if (millis() - t > 10000) {
+      Serial.println("[WiFi] Connection timeout!");
+      break; // タイムアウト -> setup を継続
+    }
+    delay(500);
   }
-  delay(500);
-}`
+}
+
+void loop() {
+  delay(1000);
+}
+`
 },
 
 r_serial_hang: {
@@ -3483,7 +4064,8 @@ r_flash_wear: {
     '書き込み頻度を下げる（値が変わった時だけ書く）',
     'キャッシュを RAM に持ち、定期的に Flash に書くパターンにする'
   ],
-  code: `// 値が変わった時だけ NVS に書く
+  code: `
+// 値が変わった時だけ NVS に書く
 #include <Preferences.h>
 Preferences prefs;
 
@@ -3495,7 +4077,18 @@ void saveIfChanged(const char* key, int newVal) {
     Serial.printf("[NVS] Saved %s=%d\\n", key, newVal);
   }
   prefs.end();
-}`
+}
+void setup() {
+  Serial.begin(115200);
+  delay(100);
+  // 上記の関数を呼び出してテスト
+  Serial.println("[DIAG] Setup complete");
+}
+
+void loop() {
+  delay(1000);
+}
+`
 },
 
 r_power_noise: {
@@ -3634,13 +4227,20 @@ r_heat_runaway: {
     'ESP32 の温度を測定する（内蔵温度センサー）',
     '高負荷処理を避け、ディープスリープを活用する'
   ],
-  code: `// 内蔵温度センサーで確認（デバッグ用：削除可能）
+  code: `
+void setup() {
+  Serial.begin(115200);
+  delay(100);
+}
+
+// 内蔵温度センサーで確認（デバッグ用：削除可能）
 extern "C" { uint8_t temprature_sens_read(); }
 void loop() {
   float tempC = (temprature_sens_read() - 32) / 1.8f;
   Serial.printf("[TEMP] Internal: %.1f°C\\n", tempC);
   delay(5000);
-}`
+}
+`
 },
 
 r_solder_crack: {
@@ -3701,7 +4301,8 @@ r_psram: {
     'ESP.getPsramSize() で認識されているか確認する',
     'PSRAM には heap_caps_malloc(size, MALLOC_CAP_SPIRAM) でアクセスする'
   ],
-  code: `// PSRAM 確認（デバッグ用：削除可能）
+  code: `
+// PSRAM 確認（デバッグ用：削除可能）
 void setup() {
   Serial.begin(115200);
   Serial.printf("[PSRAM] Size: %u bytes\\n", ESP.getPsramSize());
@@ -3709,7 +4310,12 @@ void setup() {
   if (ESP.getPsramSize() == 0) {
     Serial.println("[WARN] PSRAM not detected! Check IDE settings.");
   }
-}`
+}
+
+void loop() {
+  vTaskDelay(portMAX_DELAY); // setup()内でタスク起動済み
+}
+`
 },
 
 r_hw_contact: {
@@ -3753,7 +4359,8 @@ r_lib_conflict: {
     '競合するライブラリが同一リソース（I2C/SPI）を使う場合は Mutex でシリアライズする'
   ],
   info: '【診断手順】(1)最小スケッチ（setup/loop のみ）で動作確認 -> (2)ライブラリを1つずつ追加して再現タイミングを特定 -> (3)競合の原因（割り込み/周辺機器/タスク）を絞り込む。Arduino ESP32 BSP 自体も内部でタスクを持つ（WiFi/BT タスクなど）ため、ライブラリが高優先度タスクを作ると既存タスクを圧迫することがあります。',
-  code: `// ===================================================
+  code: `
+// ===================================================
 // 【診断手順】ライブラリ競合の切り分けテンプレート
 // ===================================================
 
@@ -3774,7 +4381,12 @@ void setup() {
 void checkTaskCount() {
   Serial.printf("[TASK] Total tasks: %u\\n", uxTaskGetNumberOfTasks());
   // ライブラリ追加前後で数が増えていたらタスクを生成している
-}`
+}
+
+void loop() {
+  vTaskDelay(portMAX_DELAY); // setup()内でタスク起動済み
+}
+`
 },
 
 r_chip_differences: {
@@ -3791,7 +4403,8 @@ r_chip_differences: {
 * ESP32-S3（デュアルコア LX7/240MHz）: SRAM 512KB, PSRAM 外付け最大8MB（オクタルSPI）。ADC2 の Wi-Fi 制約が改善。USB OTG・AI アクセラレータ内蔵。BLE5.0。
 * ESP32-C3（シングルコア RISC-V/160MHz）: SRAM 400KB, PSRAM 不可。シングルコアなので core 固定は不要。RISC-V のため Xtensa 専用アセンブリは使えない。
 * ESP32-S2（シングルコア LX7/240MHz）: SRAM 320KB, PSRAM 外付け最大4MB。BLE なし（Wi-Fi のみ）。USB OTG 内蔵。`,
-  code: `// チップ判定の条件コンパイル例
+  code: `
+// チップ判定の条件コンパイル例
 void setup() {
 #ifdef CONFIG_IDF_TARGET_ESP32
   Serial.println("ESP32: dual-core LX6");
@@ -3806,7 +4419,12 @@ void setup() {
 #elif defined(CONFIG_IDF_TARGET_ESP32S2)
   Serial.println("ESP32-S2: single-core LX7, no BLE");
 #endif
-}`
+}
+
+void loop() {
+  vTaskDelay(portMAX_DELAY); // setup()内でタスク起動済み
+}
+`
 }
 
 };
@@ -3991,6 +4609,25 @@ function renderRoot() {
   const el = document.createElement('div');
   el.className = 'node-card';
   el.innerHTML = `<h2>${node.title}</h2><p style="font-size:0.88rem;color:var(--accent-yellow);background:#d2992218;border:1px solid var(--accent-yellow);border-radius:8px;padding:10px 14px;margin-bottom:12px;">Tips: ${node.body}</p>`;
+
+  // TOPページ専用：チェックリストをカード内に展開表示
+  const hwBlock = document.createElement('div');
+  hwBlock.style.cssText = 'border:1px solid var(--accent-yellow);border-radius:8px;padding:14px 16px;margin-bottom:16px;background:#d2992210;';
+  hwBlock.innerHTML = `
+    <div style="color:var(--accent-yellow);font-size:0.85rem;font-weight:bold;margin-bottom:10px;">&#9881; ハードウェア基本チェックリスト（診断前に確認）</div>
+    <div class="hw-check-grid">
+      <label class="hw-check-item"><input type="checkbox"> 電源電圧が 3.3V ±5% 以内か</label>
+      <label class="hw-check-item"><input type="checkbox"> USB ケーブルはデータ通信対応か（充電専用NG）</label>
+      <label class="hw-check-item"><input type="checkbox"> ブレッドボード・コネクタの接触は確実か</label>
+      <label class="hw-check-item"><input type="checkbox"> 3.3V/5V の混在接続がないか</label>
+      <label class="hw-check-item"><input type="checkbox"> GPIO0/2/5/12/15 を外部回路が引っ張っていないか</label>
+      <label class="hw-check-item"><input type="checkbox"> 未使用の入力ピンにプルアップ・プルダウンがあるか</label>
+      <label class="hw-check-item"><input type="checkbox"> ADC を使う場合は ADC1 のみか（Wi-Fi使用時）</label>
+      <label class="hw-check-item"><input type="checkbox"> 周辺にモーター・リレー・スイッチング電源がないか</label>
+      <label class="hw-check-item"><input type="checkbox"> 筐体内の温度が適切か（密閉・高温環境でないか）</label>
+    </div>`;
+  el.appendChild(hwBlock);
+
   const grid = document.createElement('div');
   grid.className = 'cat-grid';
   node.choices.forEach(c => {
@@ -4165,9 +4802,29 @@ function updateBreadcrumb() {
   pl.textContent = `診断ステップ ${history.length}`;
 }
 
+function toggleHWChecklist() {
+  const body = document.getElementById('hw-checklist-body');
+  const icon = document.getElementById('hw-checklist-toggle-icon');
+  const isOpen = body.style.display !== 'none';
+  body.style.display = isOpen ? 'none' : 'block';
+  icon.innerHTML = isOpen ? '&#9660; 開く' : '&#9650; 閉じる';
+}
+
 function updateHWChecklist() {
   const banner = document.getElementById('hw-checklist-banner');
-  banner.style.display = (history.length > 0) ? 'block' : 'none';
+  const isRoot = (currentNodeId === 'root');
+  // TOPページ: 非表示（renderRoot 内に埋め込み済み）
+  // TOP以外: 折りたたみバナーを表示（デフォルト折りたたみ状態）
+  if (isRoot) {
+    banner.style.display = 'none';
+  } else {
+    banner.style.display = 'block';
+    // ページ遷移のたびに折りたたみ状態にリセット
+    const body = document.getElementById('hw-checklist-body');
+    const icon = document.getElementById('hw-checklist-toggle-icon');
+    body.style.display = 'none';
+    icon.innerHTML = '&#9660; 開く';
+  }
 }
 
 function render() {
