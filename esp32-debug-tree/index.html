@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
@@ -664,7 +664,7 @@ pre {
     <label class="hw-check-item"><input type="checkbox"> USB ケーブルはデータ通信対応か（充電専用NG）</label>
     <label class="hw-check-item"><input type="checkbox"> ブレッドボード・コネクタの接触は確実か</label>
     <label class="hw-check-item"><input type="checkbox"> 3.3V/5V の混在接続がないか</label>
-    <label class="hw-check-item"><input type="checkbox"> GPIO0/2/12/15 を外部回路が引っ張っていないか</label>
+    <label class="hw-check-item"><input type="checkbox"> GPIO0/2/5/12/15 を外部回路が引っ張っていないか</label>
     <label class="hw-check-item"><input type="checkbox"> 未使用の入力ピンにプルアップ・プルダウンがあるか</label>
     <label class="hw-check-item"><input type="checkbox"> ADC を使う場合は ADC1 のみか（Wi-Fi使用時）</label>
     <label class="hw-check-item"><input type="checkbox"> 周辺にモーター・リレー・スイッチング電源がないか</label>
@@ -818,8 +818,8 @@ intermittent_isr: {
   title: 'ISR 関連の問題',
   body: 'ISR の中で何をしていますか？',
   choices: [
-    { label: 'ISR から Serial.print や delay を呼んでいる', next: 'r_isr_bad_call' },
-    { label: 'ISR 内で重い処理をしている', next: 'r_isr_heavy' },
+    { label: 'ISR から Serial.print / delay / analogRead 等の Arduino API を呼んでいる', next: 'r_isr_bad_call' },
+    { label: 'ISR 内で重い処理をしている / ISR スタック（デフォルト 1536 バイト）が溢れているかもしれない', next: 'r_isr_heavy' },
     { label: 'ISR からタスクに通知・キューを使って渡している', next: 'r_isr_notification' },
     { label: 'フローティングピンによる誤検出かもしれない', next: 'r_floating_pin' },
   ]
@@ -1039,8 +1039,8 @@ hw_gpio: {
   title: 'GPIO・ピン系の問題',
   body: 'どのような状況ですか？',
   choices: [
-    { label: 'GPIO0/2/12/15 を外部回路で使っている', next: 'r_bootstrap_pins' },
-    { label: 'GPIO34?39 に出力・プルアップをしている', next: 'r_gpio_input_only' },
+    { label: 'GPIO0/2/5/12/15（ストラッピングピン）を外部回路で使っている', next: 'r_bootstrap_pins' },
+    { label: 'GPIO34〜39 に出力・プルアップをしている', next: 'r_gpio_input_only' },
     { label: '5V 機器に直接接続している', next: 'r_gpio_5v' },
     { label: 'GPIO から多くの LED を直接駆動している', next: 'r_gpio_drive' },
   ]
@@ -1061,7 +1061,7 @@ hw_esp32_limits: {
   body: 'どのような状況ですか？',
   choices: [
     { label: 'Wi-Fi 使用中に ADC がおかしい', next: 'r_adc_wifi' },
-    { label: 'UART0 起動時にゴミデータが出る（74880bps）', next: 'r_uart0_boot' },
+    { label: 'UART0 起動時にゴミデータが出る（ROM ブートローダのログが混入）', next: 'r_uart0_boot' },
     { label: 'タッチセンサが誤反応する', next: 'r_touch_sensor' },
     { label: 'PSRAM を使っているが不安定', next: 'r_psram' },
   ]
@@ -1114,7 +1114,7 @@ void myTask(void *pvParam) {
 xTaskCreateUniversal(
   myTask,
   "myTask",
-  4096,    // <- バイト数を増やす（余裕を持って 2?4 倍に）
+  4096,    // <- バイト数を増やす（余裕を持って 2〜4 倍に）
   NULL,
   1,
   &myTaskHandle  // <- ハンドルを保存（診断に使う）
@@ -1234,44 +1234,53 @@ r_twdt: {
   type: 'result',
   severity: 'high',
   title: 'Task Watchdog タイムアウト（TWDT）',
-  cause: 'タスクが 5秒以上（デフォルト）CPU を占有し続けたため Watchdog がトリップしました。重いループ・ブロッキング処理（通信待ち・ビジーウェイトなど）が原因です。',
+  cause: 'TWDT の監視対象タスクが一定時間（デフォルト 5秒）フィードを行わなかったためトリップしました。【重要】Arduino ESP32 BSP では loopTaskWDTEnabled はデフォルト false であり、loopTask は TWDT の監視対象に自動登録されません（v2.x / v3.x 共通）。loopTask を監視対象にするには enableLoopWDT() を明示的に呼ぶか、esp_task_wdt_add(NULL) で登録が必要です。TWDT がトリップする主な原因は、esp_task_wdt_add() で登録された自作タスクまたは CONFIG_ESP_TASK_WDT_CHECK_IDLE_TASK_FOR_CPUx が有効な場合の Idle タスクです。',
   fix: [
-    '長いループ内に vTaskDelay(pdMS_TO_TICKS(10)) を入れてスケジューラに CPU を返す',
-    'delay() と vTaskDelay() の関係：Arduino ESP32 の delay() は内部で vTaskDelay() を呼ぶラッパです。タスクコンテキストで呼べばどちらもコンテキストスイッチが発生します。ただし delay() はミリ秒単位のみで精度が低いため、FreeRTOS タスクでは vTaskDelay(pdMS_TO_TICKS(ms)) を推奨します',
-    '重い計算は小分けにして vTaskDelay を挟む',
-    'while(1){} や for(;;){} のビジーウェイトは必ず vTaskDelay を入れる'
+    'トリップしたタスク名はログの「Task watchdog got triggered. The following tasks did not reset the watchdog in time:」の直後で確認する',
+    'loopTask を TWDT 監視対象にしたい場合は setup() 内で enableLoopWDT() を呼ぶ（デフォルトは監視対象外）',
+    '自作タスクを監視対象にする場合は esp_task_wdt_add(NULL) を明示的に呼び、定期的に esp_task_wdt_reset() またはvTaskDelay でフィードする',
+    'Idle タスクが監視対象の場合（CONFIG_ESP_TASK_WDT_CHECK_IDLE_TASK_FOR_CPUx 有効時）：長いループ内に vTaskDelay(pdMS_TO_TICKS(10)) を入れて Idle タスクに CPU を返す',
+    'delay() は内部で vTaskDelay() を呼ぶラッパ。どちらも Idle タスクへの CPU 返却が発生するため Idle タスクの TWDT フィードには有効'
   ],
+  info: '【TWDT の仕組みと loopTask の関係】Arduino ESP32 BSP の main.cpp では loopTaskWDTEnabled = false が明示的にセットされており（v2.x / v3.x 共通）、loopTask は TWDT の監視対象に自動登録されません。loopTask 内では loopTaskWDTEnabled が true の場合のみ esp_task_wdt_reset() を呼ぶコードがありますが、デフォルトでは実行されません。loopTask を監視対象にするには enableLoopWDT()（= loopTaskWDTEnabled を true にして esp_task_wdt_add で登録する BSP 提供 API）を呼ぶ必要があります。TWDT がトリップする主な原因は sdkconfig で CONFIG_ESP_TASK_WDT_CHECK_IDLE_TASK_FOR_CPUx が有効な場合の Idle タスク監視、または esp_task_wdt_add() で明示登録した自作タスクのフィード途絶です。',
   code: `// ===================================================
-// 【修正位置】タスク内のループ・重い処理
+// TWDT の動作確認と対処
 // ===================================================
 
-// [NG] NG: 重いループで CPU を占有し続ける（WDT の原因）
-void badTask(void *pvParam) {
-  while (1) {
-    heavyProcess(); // 重い処理がWDTの原因。delay()の有無は関係ない
-    delay(1000);    // delay()はvTaskDelay()のラッパ->コンテキストスイッチ発生
-                    // しかし heavyProcess() が長すぎるとWDTがトリップする
-  }
+// --- loopTask と TWDT の関係 ---
+// main.cpp: loopTaskWDTEnabled = false（デフォルト・v2.x/v3.x 共通）
+// -> loopTask は TWDT 監視対象に自動登録されない
+// -> loop() がどれだけ長くてもそれだけでは TWDT はトリップしない
+//
+// TWDT がトリップする条件:
+// (1) esp_task_wdt_add() で登録した自作タスクがフィードを怠った場合
+// (2) CONFIG_ESP_TASK_WDT_CHECK_IDLE_TASK_FOR_CPUx 有効時に
+//     Idle タスクが動けない（CPU 占有）状態が続いた場合
+
+// loopTask を TWDT 監視対象にしたい場合（明示的に有効化）
+#include "esp_task_wdt.h"
+void setup() {
+  enableLoopWDT(); // loopTaskWDTEnabled = true + esp_task_wdt_add() を実行
 }
 
-// OK: 重い処理を小分けにして vTaskDelay を挟む
-void goodTask(void *pvParam) {
+// 自作タスクを TWDT 監視対象に登録する場合
+#include "esp_task_wdt.h"
+void myTask(void *pvParam) {
+  esp_task_wdt_add(NULL); // このタスクを TWDT 監視対象に登録
   while (1) {
-    heavyProcess();
-    vTaskDelay(pdMS_TO_TICKS(1000)); // FreeRTOSタスクでは vTaskDelay 推奨
-  }
-}
-
-// 重い処理を小分けにする例
-void chunkedTask(void *pvParam) {
-  while (1) {
-    for (int i = 0; i < 1000; i++) {
-      processChunk(i);
-      if (i % 50 == 0) {
-        vTaskDelay(1); // 50件ごとにスケジューラへ
-      }
-    }
+    doWork();
+    esp_task_wdt_reset(); // フィード（vTaskDelay でも可）
     vTaskDelay(pdMS_TO_TICKS(100));
+  }
+}
+
+// Idle タスク監視が有効な場合の対処（CPU 占有を防ぐ）
+void loop() {
+  for (int i = 0; i < 1000; i++) {
+    processChunk(i);
+    if (i % 50 == 0) {
+      vTaskDelay(1); // Idle タスクに CPU を返してフィードさせる
+    }
   }
 }`
 },
@@ -1529,7 +1538,7 @@ r_multicore: {
   type: 'result',
   severity: 'high',
   title: 'マルチコア（Core0/Core1）間のデータ共有',
-  cause: 'ESP32 は Dual-Core です。Core0（Arduino loop）と Core1（WiFi/BT）間での変数共有は Mutex または volatile + アトミック操作が必要です。',
+  cause: 'ESP32 は Dual-Core です。Core1（APP_CPU・Arduino の setup()/loop() がデフォルトで動作）と Core0（PRO_CPU・WiFi/BT スタックが動作）間での変数共有は Mutex または volatile + アトミック操作が必要です。ARDUINO_RUNNING_CORE のデフォルトは 1（Core1）です。',
   fix: [
     '共有変数を volatile で宣言する（コンパイラ最適化によるキャッシュを防ぐ）',
     '複合操作（Read-Modify-Write）は Mutex で保護する',
@@ -1538,6 +1547,9 @@ r_multicore: {
   code: `// ===================================================
 // STEP 1: グローバル変数として宣言（ファイル先頭）
 // ===================================================
+// ESP32 コア割り当て（デフォルト）:
+//   Core0 = PRO_CPU : WiFi/BT スタックが動作
+//   Core1 = APP_CPU : Arduino setup()/loop() が動作（ARDUINO_RUNNING_CORE=1）
 SemaphoreHandle_t coreMtx = NULL;
 volatile uint32_t sharedCounter = 0; // volatile 必須
 
@@ -1550,10 +1562,11 @@ void setup() {
   coreMtx = xSemaphoreCreateMutex();
   if (coreMtx == NULL) { while(1) delay(100); }
 
-  // Core0 にタスクを固定する例
+  // Core0（PRO_CPU・WiFi/BT と同じコア）にタスクを固定する例
   xTaskCreatePinnedToCore(
     core0Task, "core0", 4096, NULL, 1, NULL, 0
   );
+  // Core1（APP_CPU・Arduino loop と同じコア）にタスクを固定する例
   xTaskCreatePinnedToCore(
     core1Task, "core1", 4096, NULL, 1, NULL, 1
   );
@@ -1693,7 +1706,7 @@ r_isr_iram: {
   cause: 'Flash キャッシュが無効になる瞬間（NVS 書き込みなど）に ISR が実行されると、Flash 上のコードが読めず Illegal Instruction が発生します。IRAM_ATTR を付けていない関数は Flash 上に配置されます。',
   fix: [
     'ISR 関数自体と ISR から呼ぶ全関数に IRAM_ATTR を付ける',
-    'ISR 内での禁止事項：Serial.print（内部Mutex使用）、delay()（ISRコンテキストからvTaskDelayを呼べないためクラッシュ）、浮動小数点演算（FPUコンテキスト非保存）、malloc/free（内部Mutex使用）、Wire.read（Mutex使用）',
+    'ISR 内での禁止事項：Serial.print（内部Mutex使用）、delay()（ISRコンテキストからvTaskDelayを呼べないためクラッシュ）、analogRead()（ADC Mutex → 例外発生の実績あり）、SPI.transfer（Mutex + ブロッキング）、Wire.read（Mutex + ブロッキング）、malloc/free/String（ヒープ Mutex）、WiFi/BT API（全て非ISR前提）、浮動小数点演算（FPUコンテキスト非保存）',
     'ISR と共有する変数には必ず volatile を付ける（コンパイラのレジスタキャッシュを防ぐ）',
     'ISR から外部ライブラリの関数を直接呼ばない（IRAM_ATTR かどうか不明）',
     'ISR 内でのみ使う定数は DRAM_ATTR を付ける'
@@ -2525,7 +2538,7 @@ r_adc_wifi: {
   title: 'ADC 精度問題（Wi-Fi 使用時）',
   cause: 'ESP32 の ADC1 は Wi-Fi 使用中に精度が劣化します（既知の問題）。ADC2 は Wi-Fi 使用中に完全に使用不可になります。',
   fix: [
-    'Wi-Fi 使用時は ADC1（GPIO32?39）のみ使う（ADC2 は使えない）',
+    'Wi-Fi 使用時は ADC1（GPIO32〜39）のみ使う（ADC2 は使えない）',
     'ADC1 もノイズが大きいため、複数回読んで平均を取る',
     '精度が必要な場合は外付け ADC（ADS1115 等）を使う'
   ],
@@ -2563,7 +2576,7 @@ r_i2c_notfound: {
   title: 'I2C デバイスが見つからない',
   cause: 'プルアップ抵抗なし、アドレス設定ミス、配線ミス、または電源供給不足が原因です。',
   fix: [
-    'SDA/SCL に 4.7kOhm?10kOhm のプルアップ抵抗を 3.3V に接続する',
+    'SDA/SCL に 4.7kOhm〜10kOhm のプルアップ抵抗を 3.3V に接続する',
     'I2C スキャンでアドレスを確認する',
     'デバイスへの電源が正しく供給されているか確認する'
   ],
@@ -2610,7 +2623,7 @@ r_i2c_intermittent: {
   fix: [
     'Wire.setWireTimeout(3000, true) でタイムアウトを延長する（一部センサーに必要）',
     'クロック速度を 400kHz から 100kHz に落とす',
-    'プルアップ抵抗を強くする（400kHz なら 2.2kOhm?4.7kOhm）'
+    'プルアップ抵抗を強くする（400kHz なら 2.2kOhm〜4.7kOhm）'
   ],
   code: `// ===================================================
 // 【修正位置】setup() の Wire.begin() の直後
@@ -2670,7 +2683,7 @@ r_i2c_clock: {
   cause: 'バスに接続された全デバイスの最低クロック速度に合わせる必要があります。100kHz デバイスと 400kHz デバイスが混在する場合は 100kHz にします。',
   fix: [
     'バス全体を最も遅いデバイスのクロックに合わせる',
-    '100kHz->4.7kOhm?10kOhm、400kHz->2.2kOhm?4.7kOhm のプルアップを使う'
+    '100kHz->4.7kOhm〜10kOhm、400kHz->2.2kOhm〜4.7kOhm のプルアップを使う'
   ],
   code: `// ===================================================
 // 【修正位置】Wire.begin() の直後
@@ -2698,7 +2711,7 @@ r_spi_garbage: {
   title: 'SPI 応答がゴミデータ',
   cause: 'SPI モード（CPOL/CPHA）の設定が間違っているか、CS タイミングが正しくない可能性があります。',
   fix: [
-    'データシートから SPI モードを確認する（MODE0?3）',
+    'データシートから SPI モードを確認する（MODE0〜3）',
     'CS の Hold 時間のために delayMicroseconds(1) を CS 操作後に追加する',
     'クロック速度を最大値の 80% 以下に下げる'
   ],
@@ -2972,19 +2985,19 @@ r_uart0_boot: {
   type: 'result',
   severity: 'low',
   title: 'UART0（Serial）起動時のゴミデータ',
-  cause: '電源投入直後、ESP32 は 74880bps で起動ログを Serial に出力します。プログラムで設定した Serial.begin(115200) より前に 74880bps のデータが出るため、受信側がゴミデータと判断します。',
+  cause: '電源投入直後、ESP32 の ROM ブートローダは 115200bps で起動ログを UART0（Serial）に出力します。受信側が Serial.begin() を呼ぶ前にこのログが届くため、受信バッファにゴミデータとして残ります。なお 74880bps は ESP8266 固有の値（26MHz クリスタルに起因）であり、ESP32 には該当しません。',
   fix: [
     'UART0（Serial）はデバッグ専用にして、外部機器との通信には Serial2 を使う',
-    'または起動後に一定時間受信バッファをフラッシュする'
+    'または Serial.begin() 後に一定時間待ってから受信バッファをフラッシュする'
   ],
   code: `// ===================================================
 // 【修正位置】setup() の Serial.begin() 後
 // ===================================================
 void setup() {
   Serial.begin(115200);
-  delay(500); // 起動ゴミデータが終わるのを待つ
+  delay(500); // 起動ログ（115200bps）の出力が終わるのを待つ
 
-  // v 受信バッファをフラッシュ（デバッグ用：削除可能）
+  // 受信バッファをフラッシュ（デバッグ用：削除可能）
   while (Serial.available()) Serial.read();
 
   // 外部機器との通信は Serial2 を推奨
@@ -3129,30 +3142,54 @@ r_isr_bad_call: {
   type: 'result',
   severity: 'high',
   title: 'ISR 内での禁止関数呼び出し',
-  cause: 'ISR 内で Serial.print、delay、malloc、Wire.read 等を呼ぶと WDT トリップ・クラッシュが発生します。delay() は内部で vTaskDelay() を呼びますが ISR コンテキストからは呼び出し禁止のためクラッシュします。Serial.print や Wire.read は内部 Mutex を使うため ISR から呼ぶとデッドロックします。',
+  cause: 'ISR コンテキストでは、ブロッキング処理・Mutex 使用・vTaskDelay 呼び出しを含む関数は全て使用禁止です。Arduino の標準 API の多くが該当します。違反するとクラッシュ・デッドロック・例外（Illegal Instruction / Cache Disabled）が発生します。',
   fix: [
-    'ISR 内では volatile フラグを立てるだけにする',
-    'ISR から xTaskNotifyFromISR / xQueueSendFromISR でタスクに通知する',
-    '重い処理はタスク側で行う'
+    '【禁止関数一覧】Serial.print/println/write（内部 Mutex + UART バッファ待ち）',
+    '【禁止関数一覧】delay()（内部で vTaskDelay を呼ぶ → ISR コンテキスト禁止）',
+    '【禁止関数一覧】analogRead()（ADC ドライバ内部で Mutex 使用・ISR から呼ぶと例外発生の実績あり）',
+    '【禁止関数一覧】Wire.begin/read/write/requestFrom（I2C は Mutex + ブロッキング転送）',
+    '【禁止関数一覧】SPI.transfer/beginTransaction（SPI は Mutex + ブロッキング転送）',
+    '【禁止関数一覧】malloc/free/new/delete（ヒープ操作は内部 Mutex 使用）',
+    '【禁止関数一覧】String クラスの操作（内部で malloc を呼ぶ）',
+    '【禁止関数一覧】WiFi/BT 関連 API（全て非 ISR 前提の設計）',
+    'ISR 内では volatile フラグのセットまたは xTaskNotifyFromISR / xQueueSendFromISR のみ行う',
+    '重い処理・Arduino API の呼び出しは全てタスク側（loop() または別タスク）で行う'
   ],
-  code: `// [NG] NG: ISR 内での禁止関数
+  warn: 'analogRead() は過去バージョンで ISR から呼び出すと例外が発生した実績があります。安全な関数に見えても Arduino API は原則として ISR 内での使用を想定していません。「動いているように見える」場合でも使用禁止です。',
+  code: `// ===================================================
+// ISR 内での禁止関数と正しい代替パターン
+// ===================================================
+
+// [NG] NG: ISR 内での Arduino API 呼び出し（全て禁止）
 void IRAM_ATTR badISR() {
-  Serial.println("triggered"); // <- NG: ブロッキング
-  delay(10);                   // <- NG: ISRコンテキストからvTaskDelay呼び出し禁止
-  Wire.read();                 // <- NG: Mutex 使用
+  Serial.println("triggered");  // NG: 内部 Mutex + UART 待ち
+  delay(10);                    // NG: vTaskDelay 呼び出し禁止
+  analogRead(34);               // NG: ADC Mutex -> 例外発生の実績あり
+  Wire.read();                  // NG: I2C Mutex + ブロッキング
+  SPI.transfer(0x00);           // NG: SPI Mutex + ブロッキング
+  int x = malloc(64);           // NG: ヒープ Mutex
+  String s = "data";            // NG: 内部で malloc
 }
 
-// OK: フラグだけ立てる
+// [OK] OK: ISR はフラグセット + タスク通知のみ
 volatile bool isrFlag = false;
+volatile uint32_t isrValue = 0;  // ADC 値など渡したい場合
+TaskHandle_t taskHandle = NULL;
+
 void IRAM_ATTR goodISR() {
-  isrFlag = true; // これだけ
+  isrFlag = true;                // フラグだけ立てる
+  BaseType_t xHPTW = pdFALSE;
+  vTaskNotifyGiveFromISR(taskHandle, &xHPTW);
+  portYIELD_FROM_ISR(xHPTW);    // 高優先度タスクがあればすぐ切り替え
 }
 
-// タスクで処理
-void loop() {
-  if (isrFlag) {
-    isrFlag = false;
-    Serial.println("ISR triggered"); // ここで処理
+// タスク側で全ての Arduino API を呼ぶ
+void myTask(void *pv) {
+  while (1) {
+    ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+    // ここで Arduino API を安全に呼べる
+    isrValue = analogRead(34);   // OK: タスクコンテキストなら安全
+    Serial.printf("ADC=%u\n", isrValue);
   }
 }`
 },
@@ -3160,12 +3197,16 @@ void loop() {
 r_isr_heavy: {
   type: 'result',
   severity: 'high',
-  title: 'ISR が重すぎる',
-  cause: 'ISR の実行時間が長いと Interrupt Watchdog がトリップします。ISR は最大でも数マイクロ秒で完了する必要があります。',
+  title: 'ISR が重すぎる / ISR スタック溢れ',
+  cause: 'ISR の実行時間が長いと Interrupt Watchdog がトリップします。ISR は最大でも数マイクロ秒で完了する必要があります。またISRには専用スタックがあり、デフォルトサイズは CONFIG_FREERTOS_ISR_STACKSIZE = 1536 バイト（コアダンプ有効時は 2096 バイト）です。ISR 内でローカル変数を多用したり、深い関数呼び出しをすると容易に溢れます。',
   fix: [
-    'ISR は「フラグセット」または「通知送信」のみにする',
-    '重い処理を高優先度タスクに移して xTaskNotifyFromISR で起こす'
+    'ISR は「フラグセット」または「通知送信」のみにする。処理コードを書かない',
+    '重い処理を高優先度タスクに移して xTaskNotifyFromISR で起こす',
+    'ISR スタックサイズのデフォルトは 1536 バイト / コア（ESP32 デュアルコアで合計 3072 バイト消費）。ローカル変数・関数呼び出しの深さに注意',
+    'ISR スタックサイズは sdkconfig の CONFIG_FREERTOS_ISR_STACKSIZE で変更可能（範囲: 1536〜32768 バイト）',
+    'ISR スタック溢れは通常のスタックカナリアでは検出できない。クラッシュしても原因が分かりにくいため ISR を極力シンプルに保つことが最善策'
   ],
+  info: '【ISR スタックの仕組み】ESP-IDF の ISR スタックはタスクスタックとは完全に別の領域に確保されます。定義元: components/freertos/Kconfig の CONFIG_FREERTOS_ISR_STACKSIZE（デフォルト 1536 バイト）。FreeRTOSConfig.h で #define configISR_STACK_SIZE CONFIG_FREERTOS_ISR_STACKSIZE として参照されます。デュアルコアの ESP32 では Core0/Core1 それぞれが独立した ISR スタックを持つため合計消費量は 2 倍になります。',
   code: `// 高優先度ワーカータスク + ISR 通知パターン
 TaskHandle_t isrWorker = NULL;
 
@@ -3250,7 +3291,7 @@ pinMode(buttonPin, INPUT_PULLUP);
 // OK: 内部プルダウンを使う（スイッチが 3.3V に繋がっている場合）
 pinMode(buttonPin, INPUT_PULLDOWN);
 
-// 注意: GPIO34?39 は内部プルアップ/ダウンなし（外部抵抗が必要）`
+// 注意: GPIO34〜39 は内部プルアップ/ダウンなし（外部抵抗が必要）`
 },
 
 r_abort_called: {
@@ -3293,7 +3334,7 @@ r_double_exception: {
   cause: '例外ハンドラ自体が例外を起こしています。スタック破壊が深刻な場合に発生します。',
   fix: [
     '全タスクのスタックサイズを大幅に増やす',
-    'ISR スタックサイズを確認する（esp_ipc）'
+    'ISR スタックサイズを確認する（CONFIG_FREERTOS_ISR_STACKSIZE、デフォルト 1536 バイト）。sdkconfig で増やせる'
   ]
 },
 
@@ -3374,7 +3415,7 @@ r_priority_zero: {
   title: 'タスク優先度 0 の問題',
   cause: '優先度 0 は Idle タスクと同じ優先度です。他の優先度 1 以上のタスクが常に動いていると優先度 0 のタスクが実行されません。',
   fix: [
-    'ユーザータスクの優先度は 1 以上に設定する（通常 1?5）',
+    'ユーザータスクの優先度は 1 以上に設定する（通常 1〜5）',
     'Idle タスク（優先度 0）と同優先度は避ける'
   ]
 },
@@ -3526,33 +3567,35 @@ r_emi: {
   fix: [
     '信号線をモーター配線から離して配線する',
     '信号線をシールドケーブルにする（シールドは片側のみ GND に接続）',
-    'I/O ピンにフィルタコンデンサ（100pF?10nF）を付ける'
+    'I/O ピンにフィルタコンデンサ（100pF〜10nF）を付ける'
   ]
 },
 
 r_bootstrap_pins: {
   type: 'result',
   severity: 'high',
-  title: 'ブートストラップピンの誤使用',
-  cause: 'GPIO0/2/12/15 はブート時の動作モードを決定するピンです。外部回路が誤ったレベルに引っ張るとブートに失敗します。',
+  title: 'ストラッピングピンの誤使用',
+  cause: 'ESP32 のストラッピングピンは GPIO0 / GPIO2 / GPIO5 / GPIO12（MTDI）/ GPIO15（MTDO）の5本です（ESP32 データシート p.21 記載）。外部回路がブート時にこれらのピンを誤ったレベルに引っ張るとブートに失敗します。',
   fix: [
-    'GPIO0: ブート時は HIGH（外部回路が LOW にするとフラッシュモード）',
-    'GPIO2: ブート時は LOW または Hi-Z でなければならない',
-    'GPIO12: ブート時は LOW（HIGH だと 1.8V フラッシュモード）-> MISO 代替に推奨',
-    'GPIO15: ブート時は HIGH（シリアルログ制御に使用）',
-    '新しい設計では GPIO0/2/12/15 を外部回路で使わない'
+    'GPIO0：ブート時は HIGH が必要。LOW にするとフラッシュダウンロードモードで起動（BOOT ボタンはこれを利用）',
+    'GPIO2：ブート時は LOW または Hi-Z が必要。HIGH にするとダウンロードモードに入れなくなる',
+    'GPIO5：ブート時は HIGH が必要（内部プルアップあり）。VSPI の CS デフォルトピン',
+    'GPIO12（MTDI）：ブート時は LOW が必要。HIGH にすると 1.8V フラッシュモードで起動しクラッシュ。HSPI の MISO デフォルトピンなので注意',
+    'GPIO15（MTDO）：ブート時は HIGH が必要。LOW にするとブートログが無効化される',
+    '新しい設計では GPIO0 / GPIO2 / GPIO5 / GPIO12 / GPIO15 を外部回路に使用しない'
   ],
-  warn: 'これらのピンを間違えると書き込みすらできなくなります。'
+  info: '【GPIO_STRAP レジスタのビット構成】bit0=GPIO5、bit1=GPIO15、bit2=GPIO4（予約）、bit3=GPIO2、bit4=GPIO0、bit5=GPIO12。GPIO4 はレジスタ上は存在しますが、データシートの公式ストラッピングピン一覧（5本）には含まれません。',
+  warn: 'これらのピンを間違えると書き込みすらできなくなります。特に GPIO12 の誤配線は 1.8V フラッシュモードを引き起こしモジュールが起動しなくなるため最も危険です。'
 },
 
 r_gpio_input_only: {
   type: 'result',
   severity: 'high',
-  title: 'GPIO34?39 は入力専用（出力・プルアップ不可）',
+  title: 'GPIO34〜39 は入力専用（出力・プルアップ不可）',
   cause: 'GPIO34/35/36/39 は入力専用です。出力設定・内部プルアップ/プルダウン設定を行っても無効です（警告も出ません）。',
   fix: [
-    '出力やプルアップが必要なピンには GPIO0?33 を使う（ブートストラップ除く）',
-    'GPIO34?39 はアナログ入力・デジタル入力専用として使う'
+    '出力やプルアップが必要なピンには GPIO0〜33 を使う（ブートストラップ除く）',
+    'GPIO34〜39 はアナログ入力・デジタル入力専用として使う'
   ]
 },
 
@@ -3585,7 +3628,7 @@ r_heat_runaway: {
   type: 'result',
   severity: 'medium',
   title: '熱暴走（密閉筐体・高温環境）',
-  cause: 'ESP32 の動作温度範囲は -40°C?85°C です。密閉筐体内での連続動作や夏の車内などで限界を超えることがあります。',
+  cause: 'ESP32 の動作温度範囲は -40°C〜85°C です。密閉筐体内での連続動作や夏の車内などで限界を超えることがあります。',
   fix: [
     '筐体に排熱穴を設ける',
     'ESP32 の温度を測定する（内蔵温度センサー）',
@@ -3644,7 +3687,7 @@ void loop() {
   Serial.printf("[TOUCH] T0=%d T1=%d\\n",
     touchRead(T0), touchRead(T1));
   delay(200);
-  // 低い値 = タッチあり（典型値: 未触 40?80、触れ 10?20）
+  // 低い値 = タッチあり（典型値: 未触 40〜80、触れ 10〜20）
 }`
 },
 
@@ -4163,4 +4206,3 @@ function render() {
 </script>
 </body>
 </html>
-
