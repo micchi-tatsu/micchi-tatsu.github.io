@@ -1,0 +1,908 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>音声日報システム v2</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #0d1117;
+  --s1: #161b27;
+  --s2: #1e253a;
+  --s3: #252d45;
+  --border: #2a3350;
+  --accent: #3b82f6;
+  --accent-dim: rgba(59,130,246,0.15);
+  --teal: #14b8a6;
+  --teal-dim: rgba(20,184,166,0.12);
+  --warn: #f59e0b;
+  --danger: #ef4444;
+  --success: #22c55e;
+  --rec: #ef4444;
+  --text: #e2e8f0;
+  --t2: #94a3b8;
+  --t3: #4b5675;
+  --mono: 'JetBrains Mono', monospace;
+}
+
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
+
+body{
+  font-family:'Noto Sans JP',sans-serif;
+  background:var(--bg);
+  color:var(--text);
+  min-height:100vh;
+  overflow-x:hidden;
+}
+
+/* dot grid */
+body::before{
+  content:'';position:fixed;inset:0;
+  background-image:radial-gradient(circle, rgba(59,130,246,0.06) 1px, transparent 1px);
+  background-size:28px 28px;
+  pointer-events:none;z-index:0;
+}
+
+#root{position:relative;z-index:1;max-width:480px;margin:0 auto;display:flex;flex-direction:column;min-height:100vh;}
+
+/* ─── Header ─── */
+.hdr{
+  padding:16px 16px 12px;
+  display:flex;align-items:center;gap:12px;
+  background:rgba(13,17,23,0.85);
+  backdrop-filter:blur(16px);
+  border-bottom:1px solid var(--border);
+  position:sticky;top:0;z-index:100;
+}
+.hdr-logo{
+  width:38px;height:38px;border-radius:12px;
+  background:linear-gradient(135deg,#3b82f6,#14b8a6);
+  display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;
+}
+.hdr-text h1{font-size:15px;font-weight:700;letter-spacing:.04em;}
+.hdr-text p{font-size:10px;color:var(--t2);margin-top:1px;font-family:var(--mono);}
+
+/* ─── Tabs ─── */
+.tabs{
+  display:flex;gap:2px;padding:4px;
+  background:var(--s1);
+  border-bottom:1px solid var(--border);
+}
+.tab{
+  flex:1;padding:9px 0;border:none;background:transparent;
+  color:var(--t2);font-family:inherit;font-size:12px;font-weight:600;
+  cursor:pointer;border-radius:8px;transition:all .2s;
+  letter-spacing:.03em;
+}
+.tab.on{background:var(--s3);color:var(--text);}
+
+/* ─── Panel ─── */
+.panel{display:none;flex-direction:column;flex:1;padding:14px;gap:12px;padding-bottom:40px;}
+.panel.on{display:flex;}
+
+/* ─── Card ─── */
+.card{
+  background:var(--s1);
+  border:1px solid var(--border);
+  border-radius:16px;overflow:hidden;
+}
+.card-hdr{
+  padding:11px 14px;border-bottom:1px solid var(--border);
+  display:flex;align-items:center;gap:8px;
+}
+.card-icon{
+  width:26px;height:26px;border-radius:7px;
+  display:flex;align-items:center;justify-content:center;font-size:13px;
+}
+.card-hdr h2{font-size:12px;font-weight:700;letter-spacing:.06em;color:var(--t2);text-transform:uppercase;}
+.card-body{padding:14px;display:flex;flex-direction:column;gap:10px;}
+
+/* ─── Field ─── */
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+.field{display:flex;flex-direction:column;gap:5px;}
+.field label{font-size:10px;font-weight:700;color:var(--t3);letter-spacing:.1em;text-transform:uppercase;}
+.field label .req{color:var(--accent);margin-left:2px;}
+
+.fi{ /* field input base */
+  background:var(--s2);border:1px solid var(--border);border-radius:10px;
+  padding:9px 12px;color:var(--text);font-family:inherit;font-size:13px;
+  outline:none;transition:border-color .2s;width:100%;
+}
+.fi:focus{border-color:var(--accent);}
+select.fi option{background:var(--s2);}
+textarea.fi{resize:vertical;min-height:72px;line-height:1.65;}
+
+/* voice-attached field */
+.vfield{display:flex;flex-direction:column;gap:5px;}
+.vfield-top{display:flex;align-items:center;justify-content:space-between;}
+.vfield-top label{font-size:10px;font-weight:700;color:var(--t3);letter-spacing:.1em;text-transform:uppercase;}
+.mic-inline{
+  width:26px;height:26px;border-radius:50%;border:1px solid var(--border);
+  background:var(--s3);color:var(--t2);font-size:12px;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;transition:all .2s;flex-shrink:0;
+}
+.mic-inline.on{background:var(--rec);border-color:var(--rec);color:#fff;animation:micpulse 1.2s infinite;}
+@keyframes micpulse{0%,100%{box-shadow:0 0 0 0 rgba(239,68,68,.4)}50%{box-shadow:0 0 0 8px rgba(239,68,68,0)}}
+
+/* ─── Central Mic ─── */
+.voice-center{
+  display:flex;flex-direction:column;align-items:center;gap:14px;padding:22px 14px;
+}
+.big-mic{
+  width:88px;height:88px;border-radius:50%;border:none;
+  background:var(--s2);cursor:pointer;
+  display:flex;align-items:center;justify-content:center;font-size:34px;
+  transition:all .25s;position:relative;
+  box-shadow:0 6px 24px rgba(0,0,0,.4);
+}
+.big-mic:active{transform:scale(.95);}
+.big-mic.on{background:var(--rec);box-shadow:0 0 0 0 rgba(239,68,68,.5);animation:bigpulse 1.5s infinite;}
+@keyframes bigpulse{0%{box-shadow:0 0 0 0 rgba(239,68,68,.5)}70%{box-shadow:0 0 0 22px rgba(239,68,68,0)}100%{box-shadow:0 0 0 0 rgba(239,68,68,0)}}
+
+.wave{display:flex;align-items:center;gap:3px;height:20px;}
+.wave span{
+  width:3px;background:var(--rec);border-radius:2px;
+  animation:wv .7s infinite ease-in-out alternate;
+}
+.wave span:nth-child(1){animation-delay:0s}
+.wave span:nth-child(2){animation-delay:.1s}
+.wave span:nth-child(3){animation-delay:.2s}
+.wave span:nth-child(4){animation-delay:.3s}
+.wave span:nth-child(5){animation-delay:.2s}
+.wave span:nth-child(6){animation-delay:.1s}
+.wave span:nth-child(7){animation-delay:0s}
+@keyframes wv{from{height:4px}to{height:18px}}
+.wave.hide{visibility:hidden;}
+
+.voice-hint{font-size:12px;color:var(--t2);text-align:center;}
+.voice-hint.on{color:var(--rec);}
+
+/* raw transcript */
+.raw-box{
+  margin:0 14px;
+  background:var(--s2);border:1px dashed var(--border);border-radius:10px;
+  padding:12px;min-height:70px;
+  font-size:13px;line-height:1.7;color:var(--text);
+  white-space:pre-wrap;word-break:break-all;
+}
+.raw-box.empty{color:var(--t3);font-style:italic;}
+
+.raw-actions{
+  display:flex;gap:8px;padding:0 14px;margin-top:4px;
+}
+.raw-btn{
+  flex:1;padding:9px 0;border:none;border-radius:9px;
+  font-family:inherit;font-size:12px;font-weight:700;
+  cursor:pointer;transition:all .2s;letter-spacing:.03em;
+  display:flex;align-items:center;justify-content:center;gap:5px;
+}
+.raw-btn:disabled{opacity:.35;cursor:not-allowed;}
+.btn-ai{background:linear-gradient(135deg,#3b82f6,#8b5cf6);color:#fff;}
+.btn-ai:not(:disabled):hover{opacity:.88;transform:translateY(-1px);}
+.btn-clear{background:var(--s3);color:var(--t2);}
+.btn-clear:not(:disabled):hover{background:var(--border);color:var(--text);}
+
+/* AI thinking */
+.ai-thinking{
+  display:none;align-items:center;gap:8px;
+  padding:12px 14px;color:var(--t2);font-size:12px;
+}
+.ai-thinking.on{display:flex;}
+.spin{
+  width:16px;height:16px;border:2px solid var(--border);
+  border-top-color:var(--accent);border-radius:50%;
+  animation:spin .8s linear infinite;flex-shrink:0;
+}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* ─── Structured Result ─── */
+.struct-grid{display:flex;flex-direction:column;gap:8px;padding:14px;}
+
+.sfield{
+  background:var(--s2);border:1px solid var(--border);border-radius:10px;
+  overflow:hidden;
+}
+.sfield-label{
+  padding:6px 12px;
+  background:var(--s3);
+  font-size:9px;font-weight:700;color:var(--t2);
+  letter-spacing:.1em;text-transform:uppercase;
+  border-bottom:1px solid var(--border);
+  display:flex;align-items:center;gap:6px;
+}
+.sfield-label .dot{
+  width:6px;height:6px;border-radius:50%;background:var(--accent);flex-shrink:0;
+}
+.sfield-val{
+  padding:10px 12px;font-size:13px;line-height:1.7;color:var(--text);
+  outline:none;min-height:40px;
+  background:transparent;border:none;width:100%;
+  font-family:inherit;resize:none;
+}
+.sfield-val:focus{background:rgba(59,130,246,.04);}
+
+.sfield.warn .sfield-label .dot{background:var(--warn);}
+.sfield.success .sfield-label .dot{background:var(--success);}
+.sfield.danger .sfield-label .dot{background:var(--danger);}
+
+/* save bar */
+.save-bar{
+  padding:14px;
+  display:flex;gap:8px;
+}
+.save-btn{
+  flex:1;padding:14px 0;border:none;border-radius:12px;
+  background:linear-gradient(135deg,var(--teal),#0d9488);
+  color:#0d1117;font-family:inherit;font-size:14px;font-weight:800;
+  cursor:pointer;transition:all .2s;display:flex;align-items:center;justify-content:center;gap:6px;
+}
+.save-btn:disabled{opacity:.3;cursor:not-allowed;}
+.save-btn:not(:disabled):hover{transform:translateY(-1px);box-shadow:0 4px 16px rgba(20,184,166,.3);}
+
+/* ─── List ─── */
+.rlist{display:flex;flex-direction:column;gap:10px;}
+
+.rcard{
+  background:var(--s1);border:1px solid var(--border);border-radius:14px;
+  overflow:hidden;cursor:pointer;transition:border-color .2s, transform .1s;
+}
+.rcard:active{transform:scale(.98);}
+.rcard:hover{border-color:var(--accent);}
+
+.rcard-top{padding:12px 14px;display:flex;align-items:flex-start;gap:10px;}
+.rcard-id{font-family:var(--mono);font-size:9px;color:var(--accent);font-weight:600;letter-spacing:.06em;}
+.rcard-name{font-size:14px;font-weight:700;margin-top:2px;}
+.rcard-badges{display:flex;gap:6px;margin-top:6px;flex-wrap:wrap;}
+.badge{
+  padding:2px 8px;border-radius:20px;font-size:10px;font-weight:700;
+  background:var(--s2);color:var(--t2);
+}
+.badge.type{background:var(--accent-dim);color:var(--accent);}
+.badge.loc{background:var(--teal-dim);color:var(--teal);}
+.rcard-time{font-family:var(--mono);font-size:9px;color:var(--t3);white-space:nowrap;padding-top:2px;}
+.rcard-preview{
+  padding:0 14px 12px;font-size:11px;color:var(--t2);line-height:1.6;
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;
+}
+
+.empty-state{text-align:center;padding:60px 20px;color:var(--t3);}
+.empty-state .ei{font-size:44px;margin-bottom:12px;}
+.empty-state p{font-size:13px;line-height:1.7;}
+
+/* ─── Modal ─── */
+.overlay{
+  position:fixed;inset:0;background:rgba(0,0,0,.75);
+  backdrop-filter:blur(6px);z-index:200;display:none;align-items:flex-end;
+}
+.overlay.on{display:flex;}
+.modal{
+  background:var(--s1);border-radius:22px 22px 0 0;
+  border:1px solid var(--border);border-bottom:none;
+  width:100%;max-height:88vh;overflow-y:auto;
+  animation:slideup .3s cubic-bezier(.16,1,.3,1);
+}
+@keyframes slideup{from{transform:translateY(100%)}to{transform:translateY(0)}}
+.modal-handle{width:36px;height:4px;background:var(--border);border-radius:2px;margin:10px auto 0;}
+.modal-head{
+  padding:14px 18px;border-bottom:1px solid var(--border);
+  display:flex;align-items:center;justify-content:space-between;
+}
+.modal-head h3{font-size:15px;font-weight:700;}
+.modal-close{
+  width:30px;height:30px;border-radius:50%;border:none;
+  background:var(--s3);color:var(--t2);cursor:pointer;font-size:14px;
+  display:flex;align-items:center;justify-content:center;
+}
+.modal-body{padding:18px;display:flex;flex-direction:column;gap:14px;}
+.drow{display:flex;flex-direction:column;gap:4px;}
+.dlabel{font-size:9px;font-weight:700;color:var(--t3);letter-spacing:.1em;text-transform:uppercase;}
+.dval{
+  font-size:13px;color:var(--text);line-height:1.7;white-space:pre-wrap;
+  background:var(--s2);padding:12px;border-radius:10px;
+}
+.dval.mono{font-family:var(--mono);font-size:11px;color:var(--t2);}
+
+/* toast */
+.toast{
+  position:fixed;bottom:28px;left:50%;
+  transform:translateX(-50%) translateY(70px);
+  background:var(--success);color:#0d1117;
+  padding:11px 22px;border-radius:40px;
+  font-size:12px;font-weight:800;z-index:300;
+  transition:transform .3s;white-space:nowrap;
+}
+.toast.on{transform:translateX(-50%) translateY(0);}
+
+/* Progress steps */
+.steps{
+  display:flex;align-items:center;justify-content:center;gap:0;
+  padding:12px 14px 0;
+}
+.step{
+  display:flex;align-items:center;flex-direction:column;gap:4px;flex:1;
+  position:relative;
+}
+.step::after{
+  content:'';position:absolute;top:12px;left:50%;width:100%;height:1px;
+  background:var(--border);
+}
+.step:last-child::after{display:none;}
+.step-dot{
+  width:24px;height:24px;border-radius:50%;background:var(--s2);border:2px solid var(--border);
+  display:flex;align-items:center;justify-content:center;font-size:10px;
+  position:relative;z-index:1;transition:all .3s;
+}
+.step.done .step-dot{background:var(--accent);border-color:var(--accent);}
+.step.active .step-dot{background:var(--s3);border-color:var(--accent);color:var(--accent);}
+.step-label{font-size:9px;color:var(--t3);font-weight:600;letter-spacing:.05em;text-transform:uppercase;text-align:center;}
+.step.done .step-label,.step.active .step-label{color:var(--t2);}
+</style>
+</head>
+<body>
+<div id="root">
+
+  <!-- Header -->
+  <header class="hdr">
+    <div class="hdr-logo">🎙️</div>
+    <div class="hdr-text">
+      <h1>音声日報システム</h1>
+      <p>Voice Report System v2.0</p>
+    </div>
+  </header>
+
+  <!-- Tabs -->
+  <div class="tabs">
+    <button class="tab on" onclick="tab('input')">📝 新規作成</button>
+    <button class="tab" onclick="tab('list')">📋 保存済み<span id="cnt"></span></button>
+  </div>
+
+  <!-- ══ INPUT PANEL ══ -->
+  <div class="panel on" id="panel-input">
+
+    <!-- Progress steps -->
+    <div class="steps">
+      <div class="step done" id="step1">
+        <div class="step-dot">1</div>
+        <div class="step-label">基本情報</div>
+      </div>
+      <div class="step" id="step2">
+        <div class="step-dot">2</div>
+        <div class="step-label">音声入力</div>
+      </div>
+      <div class="step" id="step3">
+        <div class="step-dot">3</div>
+        <div class="step-label">AI整形</div>
+      </div>
+      <div class="step" id="step4">
+        <div class="step-dot">4</div>
+        <div class="step-label">保存</div>
+      </div>
+    </div>
+
+    <!-- 基本情報 -->
+    <div class="card">
+      <div class="card-hdr">
+        <div class="card-icon" style="background:rgba(59,130,246,.15)">📌</div>
+        <h2>基本情報</h2>
+      </div>
+      <div class="card-body">
+        <div class="row2">
+          <div class="field">
+            <label>報告者<span class="req">*</span></label>
+            <input class="fi" id="fReporter" type="text" placeholder="氏名">
+          </div>
+          <div class="field">
+            <label>日付<span class="req">*</span></label>
+            <input class="fi" id="fDate" type="date">
+          </div>
+        </div>
+        <div class="row2">
+          <div class="field">
+            <label>種別</label>
+            <select class="fi" id="fType">
+              <option>日報</option>
+              <option>作業報告</option>
+              <option>インシデント</option>
+              <option>点検報告</option>
+              <option>進捗報告</option>
+              <option>その他</option>
+            </select>
+          </div>
+          <div class="vfield">
+            <div class="vfield-top">
+              <label>場所</label>
+              <button class="mic-inline" id="micLoc" onclick="micField('fLocation','micLoc')" title="音声で入力">🎤</button>
+            </div>
+            <input class="fi" id="fLocation" type="text" placeholder="現場・エリア名">
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 音声入力 MAIN -->
+    <div class="card">
+      <div class="card-hdr">
+        <div class="card-icon" style="background:rgba(239,68,68,.15)">🎤</div>
+        <h2>音声入力（自由発話）</h2>
+      </div>
+
+      <!-- モード切替 -->
+      <div style="display:flex;gap:6px;padding:0 14px 4px;margin-top:4px;">
+        <button class="raw-btn" id="modeVoiceBtn" onclick="setMode('voice')"
+          style="background:var(--accent);color:#fff;font-size:11px;padding:7px 0;">🎤 音声入力</button>
+        <button class="raw-btn" id="modeTextBtn" onclick="setMode('text')"
+          style="background:var(--s3);color:var(--t2);font-size:11px;padding:7px 0;">⌨️ テキスト入力</button>
+      </div>
+
+      <!-- 音声モード -->
+      <div id="voiceMode">
+        <div class="voice-center">
+          <button class="big-mic" id="bigMic" onclick="toggleMain()">🎤</button>
+          <div class="wave hide" id="waveMain">
+            <span></span><span></span><span></span><span></span><span></span><span></span><span></span>
+          </div>
+          <p class="voice-hint" id="vcHint">タップして録音開始<br><small style="color:var(--t3)">作業内容を自由に話してください</small></p>
+        </div>
+        <div style="padding:0 14px 4px;text-align:center;font-size:11px;color:var(--t3);">
+          ⚠️ claude.aiのプレビュー内ではマイクは使えません。<br>ローカルサーバーで開くか、テキスト入力モードをお使いください。
+        </div>
+      </div>
+
+      <!-- テキストモード -->
+      <div id="textMode" style="display:none;padding:14px;padding-top:6px;">
+        <div style="display:flex;gap:6px;margin-bottom:8px;">
+          <button class="raw-btn btn-clear" style="font-size:11px;padding:7px 0;flex:none;width:auto;padding:7px 14px;"
+            onclick="insertDemo()">📋 デモデータを挿入</button>
+        </div>
+        <textarea class="fi" id="textInput" rows="6" placeholder="ここに作業内容を直接入力してください。&#10;&#10;例：&#10;午前中は第2倉庫の棚卸し作業を行った。品番A-203が在庫不足で発注が必要。午後はフォークリフトの月次点検を実施し、異常なし。明日は第3倉庫の続きを予定。"
+          oninput="onTextInput(this.value)"
+          style="min-height:130px;line-height:1.7;"></textarea>
+      </div>
+
+      <div class="raw-box empty" id="rawBox" style="display:none;">音声の文字起こしがここに表示されます...</div>
+
+      <div class="raw-actions" style="margin-top:4px;">
+        <button class="raw-btn btn-clear" id="btnClear" onclick="clearRaw()" disabled>✕ クリア</button>
+        <button class="raw-btn btn-ai" id="btnAI" onclick="runAI()" disabled>✦ AIで整形</button>
+      </div>
+
+      <div class="ai-thinking" id="aiThink">
+        <div class="spin"></div>
+        <span>AIが各項目に振り分け中...</span>
+      </div>
+    </div>
+
+    <!-- 構造化フォーム -->
+    <div class="card" id="structCard">
+      <div class="card-hdr">
+        <div class="card-icon" style="background:rgba(20,184,166,.15)">📋</div>
+        <h2>構造化フォーム（確認・編集）</h2>
+      </div>
+      <div class="struct-grid">
+
+        <div class="sfield">
+          <div class="sfield-label"><div class="dot"></div>作業概要</div>
+          <textarea class="sfield-val" id="sf_summary" rows="2" placeholder="何をしたか（AIが自動入力）"></textarea>
+        </div>
+
+        <div class="sfield">
+          <div class="sfield-label"><div class="dot"></div>実施内容</div>
+          <textarea class="sfield-val" id="sf_detail" rows="4" placeholder="具体的な作業内容（AIが自動入力）"></textarea>
+        </div>
+
+        <div class="sfield warn">
+          <div class="sfield-label"><div class="dot"></div>問題点・特記事項</div>
+          <textarea class="sfield-val" id="sf_issue" rows="2" placeholder="問題・懸念点（なければ空欄）"></textarea>
+        </div>
+
+        <div class="sfield success">
+          <div class="sfield-label"><div class="dot"></div>次回アクション / 引き継ぎ</div>
+          <textarea class="sfield-val" id="sf_next" rows="2" placeholder="明日の予定・引き継ぎ事項"></textarea>
+        </div>
+
+        <div class="sfield">
+          <div class="sfield-label">
+            <div class="dot" style="background:var(--t3)"></div>補足（手動入力）
+          </div>
+          <textarea class="sfield-val" id="sf_note" rows="2" placeholder="音声で補えなかった補足事項など"></textarea>
+        </div>
+
+      </div>
+
+      <div class="save-bar">
+        <button class="save-btn" id="saveBtn" onclick="saveReport()" disabled>
+          💾 報告書を保存する
+        </button>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ══ LIST PANEL ══ -->
+  <div class="panel" id="panel-list">
+    <div class="rlist" id="rList">
+      <div class="empty-state">
+        <div class="ei">📭</div>
+        <p>まだ報告書がありません<br>新規作成タブから作成してください</p>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /root -->
+
+<!-- Modal -->
+<div class="overlay" id="overlay" onclick="closeModal(event)">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-head">
+      <div>
+        <div style="font-family:var(--mono);font-size:9px;color:var(--accent);font-weight:600;letter-spacing:.06em" id="mId"></div>
+        <h3 id="mTitle"></h3>
+      </div>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="modal-body" id="mBody"></div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<script>
+// ─── State ───────────────────────────────────────────────
+let reports   = JSON.parse(localStorage.getItem('vrs2') || '[]');
+let recognition = null;
+let isRecording = false;
+let rawText   = '';
+let aiDone    = false;
+let fieldRec  = null; // for inline field mic
+
+// ─── Init ────────────────────────────────────────────────
+document.getElementById('fDate').value = new Date().toISOString().slice(0,10);
+updateCount();
+
+// ─── Tabs ────────────────────────────────────────────────
+function tab(t){
+  ['input','list'].forEach(n=>{
+    document.getElementById('panel-'+n).classList.toggle('on',n===t);
+  });
+  document.querySelectorAll('.tab').forEach((b,i)=>{
+    b.classList.toggle('on',(i===0&&t==='input')||(i===1&&t==='list'));
+  });
+  if(t==='list') renderList();
+}
+
+// ─── Steps ───────────────────────────────────────────────
+function setStep(n){
+  for(let i=1;i<=4;i++){
+    const el=document.getElementById('step'+i);
+    el.className='step'+(i<n?' done':i===n?' active':'');
+  }
+}
+
+// ─── Mode switch ─────────────────────────────────────────
+let currentMode = 'voice';
+function setMode(m){
+  currentMode = m;
+  const isText = m === 'text';
+  document.getElementById('voiceMode').style.display = isText ? 'none' : '';
+  document.getElementById('textMode').style.display = isText ? '' : 'none';
+  document.getElementById('rawBox').style.display = isText ? 'none' : '';
+  document.getElementById('modeVoiceBtn').style.background = isText ? 'var(--s3)' : 'var(--accent)';
+  document.getElementById('modeVoiceBtn').style.color = isText ? 'var(--t2)' : '#fff';
+  document.getElementById('modeTextBtn').style.background = isText ? 'var(--accent)' : 'var(--s3)';
+  document.getElementById('modeTextBtn').style.color = isText ? '#fff' : 'var(--t2)';
+  if(!isText) rawText = '';
+}
+
+function onTextInput(val){
+  rawText = val;
+  document.getElementById('btnAI').disabled = !val.trim();
+  document.getElementById('btnClear').disabled = !val.trim();
+}
+
+const DEMO_TEXT = `午前中は第2倉庫の棚卸し作業を実施した。品番A-203とB-117が在庫不足で早急に発注が必要な状態。B棟の照明が2箇所切れているのを確認、施設担当に連絡済み。午後はフォークリフト3号機の月次点検を行い、ブレーキ・油圧とも異常なし。点検記録簿に記入完了。明日は第3倉庫の続きと、新人の田中さんへのフォークリフト操作説明を予定。`;
+
+function insertDemo(){
+  document.getElementById('textInput').value = DEMO_TEXT;
+  onTextInput(DEMO_TEXT);
+}
+
+// ─── Main Voice ──────────────────────────────────────────
+function toggleMain(){
+  isRecording ? stopMain() : startMain();
+}
+
+function startMain(){
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SR){alert('Chrome または Edge をご使用ください（Web Speech API 対応）');return;}
+  recognition=new SR();
+  recognition.lang='ja-JP';
+  recognition.continuous=true;
+  recognition.interimResults=true;
+  let final=rawText;
+  recognition.onresult=e=>{
+    let interim='';
+    for(let i=e.resultIndex;i<e.results.length;i++){
+      if(e.results[i].isFinal) final+=e.results[i][0].transcript;
+      else interim+=e.results[i][0].transcript;
+    }
+    rawText=final;
+    setRaw(final+interim);
+  };
+  recognition.onerror=()=>setRecState(false);
+  recognition.onend=()=>{ if(isRecording) recognition.start(); };
+  recognition.start();
+  setRecState(true);
+  setStep(2);
+}
+
+function stopMain(){
+  recognition?.stop(); recognition=null;
+  setRecState(false);
+}
+
+function setRecState(on){
+  isRecording=on;
+  document.getElementById('bigMic').classList.toggle('on',on);
+  document.getElementById('bigMic').textContent=on?'⏹':'🎤';
+  document.getElementById('waveMain').classList.toggle('hide',!on);
+  const h=document.getElementById('vcHint');
+  h.className='voice-hint'+(on?' on':'');
+  h.innerHTML=on?'録音中 — もう一度タップで停止':'タップして録音開始<br><small style="color:var(--t3)">作業内容を自由に話してください</small>';
+  document.getElementById('btnAI').disabled=!rawText;
+  document.getElementById('btnClear').disabled=!rawText;
+}
+
+function setRaw(t){
+  const b=document.getElementById('rawBox');
+  b.textContent=t||'';
+  b.className='raw-box'+(t?'':' empty');
+  if(!t) b.textContent='音声の文字起こしがここに表示されます...';
+  document.getElementById('btnAI').disabled=!rawText;
+  document.getElementById('btnClear').disabled=!rawText;
+}
+
+function clearRaw(){
+  rawText=''; aiDone=false;
+  setRaw('');
+  if(document.getElementById('textInput'))
+    document.getElementById('textInput').value='';
+  clearStruct();
+  document.getElementById('saveBtn').disabled=true;
+  setStep(1);
+}
+
+// ─── Inline Field Mic ────────────────────────────────────
+let fieldRecActive=false;
+let fieldTarget='';
+let fieldMicBtn=null;
+let fieldRecObj=null;
+
+function micField(fieldId,btnId){
+  if(fieldRecActive && fieldTarget===fieldId){
+    // stop
+    fieldRecObj?.stop(); fieldRecObj=null;
+    fieldRecActive=false;
+    document.getElementById(btnId).classList.remove('on');
+    document.getElementById(btnId).textContent='🎤';
+    return;
+  }
+  // stop any previous
+  if(fieldRecObj){ fieldRecObj.stop(); fieldRecObj=null; }
+  if(fieldMicBtn) { document.getElementById(fieldMicBtn).classList.remove('on'); document.getElementById(fieldMicBtn).textContent='🎤'; }
+
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SR){alert('Chrome または Edge が必要です');return;}
+
+  fieldTarget=fieldId; fieldMicBtn=btnId; fieldRecActive=true;
+  document.getElementById(btnId).classList.add('on');
+  document.getElementById(btnId).textContent='⏹';
+
+  const r=new SR();
+  r.lang='ja-JP'; r.continuous=false; r.interimResults=false;
+  r.onresult=e=>{
+    const val=e.results[0][0].transcript;
+    const el=document.getElementById(fieldId);
+    el.value=(el.value?el.value+' ':'')+val;
+  };
+  r.onend=()=>{
+    fieldRecActive=false;
+    document.getElementById(btnId).classList.remove('on');
+    document.getElementById(btnId).textContent='🎤';
+    fieldRecObj=null;
+  };
+  r.start();
+  fieldRecObj=r;
+}
+
+// ─── AI ──────────────────────────────────────────────────
+async function runAI(){
+  if(!rawText.trim()) return;
+  if(isRecording) stopMain();
+
+  document.getElementById('btnAI').disabled=true;
+  document.getElementById('aiThink').classList.add('on');
+  setStep(3);
+
+  const reporter=document.getElementById('fReporter').value||'未入力';
+  const date=document.getElementById('fDate').value;
+  const type=document.getElementById('fType').value;
+  const loc=document.getElementById('fLocation').value||'未指定';
+
+  const prompt=`あなたは業務報告書の整形AIです。
+以下の音声入力テキストから、各項目を抽出・整形してください。
+
+【メタ情報】
+報告者:${reporter} / 日付:${date} / 種別:${type} / 場所:${loc}
+
+【音声入力テキスト】
+${rawText}
+
+必ず以下のJSONのみを返してください（他の文字は一切不要）:
+{
+  "summary": "作業概要を1〜2文で",
+  "detail": "実施内容を箇条書き（・で始まる各行）で",
+  "issue": "問題点・特記事項を簡潔に。なければ空文字",
+  "next": "次回アクション・引き継ぎ事項。なければ空文字"
+}`;
+
+  try {
+    const res=await fetch('https://api.anthropic.com/v1/messages',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({
+        model:'claude-sonnet-4-20250514',
+        max_tokens:1000,
+        messages:[{role:'user',content:prompt}]
+      })
+    });
+    const data=await res.json();
+    const text=data.content?.map(b=>b.text||'').join('')||'';
+    const json=JSON.parse(text.replace(/```json|```/g,'').trim());
+    fillStruct(json);
+  } catch(e) {
+    // Demo fallback
+    fillStruct(demoFill(rawText,type,loc));
+  }
+
+  document.getElementById('aiThink').classList.remove('on');
+  document.getElementById('btnAI').disabled=false;
+  document.getElementById('saveBtn').disabled=false;
+  aiDone=true;
+  setStep(4);
+}
+
+function fillStruct(d){
+  document.getElementById('sf_summary').value=d.summary||'';
+  document.getElementById('sf_detail').value=d.detail||'';
+  document.getElementById('sf_issue').value=d.issue||'';
+  document.getElementById('sf_next').value=d.next||'';
+}
+
+function clearStruct(){
+  ['sf_summary','sf_detail','sf_issue','sf_next','sf_note'].forEach(id=>{
+    document.getElementById(id).value='';
+  });
+}
+
+function demoFill(text,type,loc){
+  const preview=text.length>40?text.slice(0,40)+'…':text;
+  return {
+    summary:`${loc}にて${type}を実施。${preview}`,
+    detail:`・音声で報告された作業内容の実施\n・関連設備の確認・記録\n・完了確認`,
+    issue:'',
+    next:'通常業務を継続'
+  };
+}
+
+// ─── Save ────────────────────────────────────────────────
+function saveReport(){
+  const r={
+    id:'RPT-'+Date.now().toString(36).toUpperCase().slice(-6),
+    reporter:document.getElementById('fReporter').value||'未入力',
+    date:document.getElementById('fDate').value,
+    type:document.getElementById('fType').value,
+    location:document.getElementById('fLocation').value||'未指定',
+    raw:rawText,
+    summary:document.getElementById('sf_summary').value,
+    detail:document.getElementById('sf_detail').value,
+    issue:document.getElementById('sf_issue').value,
+    next:document.getElementById('sf_next').value,
+    note:document.getElementById('sf_note').value,
+    savedAt:new Date().toISOString()
+  };
+  reports.unshift(r);
+  localStorage.setItem('vrs2',JSON.stringify(reports));
+  updateCount();
+  showToast('✅ 報告書を保存しました');
+  resetForm();
+  setTimeout(()=>tab('list'),800);
+}
+
+function resetForm(){
+  rawText=''; aiDone=false;
+  setRaw('');
+  clearStruct();
+  document.getElementById('fReporter').value='';
+  document.getElementById('fLocation').value='';
+  document.getElementById('sf_note').value='';
+  document.getElementById('fDate').value=new Date().toISOString().slice(0,10);
+  document.getElementById('saveBtn').disabled=true;
+  document.getElementById('btnAI').disabled=true;
+  document.getElementById('btnClear').disabled=true;
+  setStep(1);
+}
+
+// ─── List ────────────────────────────────────────────────
+function renderList(){
+  const el=document.getElementById('rList');
+  if(!reports.length){
+    el.innerHTML='<div class="empty-state"><div class="ei">📭</div><p>まだ報告書がありません<br>新規作成タブから作成してください</p></div>';
+    return;
+  }
+  el.innerHTML=reports.map(r=>{
+    const dt=new Date(r.savedAt);
+    const ts=`${dt.getMonth()+1}/${dt.getDate()} ${String(dt.getHours()).padStart(2,'0')}:${String(dt.getMinutes()).padStart(2,'0')}`;
+    const prev=(r.summary||r.raw||'').slice(0,55)+'…';
+    return `<div class="rcard" onclick="showReport('${r.id}')">
+      <div class="rcard-top">
+        <div style="flex:1">
+          <div class="rcard-id">${r.id}</div>
+          <div class="rcard-name">${r.reporter} / ${r.type}</div>
+          <div class="rcard-badges">
+            <span class="badge type">${r.type}</span>
+            <span class="badge loc">📍${r.location}</span>
+            <span class="badge">${r.date}</span>
+          </div>
+        </div>
+        <div class="rcard-time">${ts}</div>
+      </div>
+      <div class="rcard-preview">${prev}</div>
+    </div>`;
+  }).join('');
+}
+
+function updateCount(){
+  const n=reports.length;
+  document.getElementById('cnt').textContent=n?` (${n})`:'';
+}
+
+function showReport(id){
+  const r=reports.find(x=>x.id===id);
+  if(!r)return;
+  document.getElementById('mId').textContent=r.id;
+  document.getElementById('mTitle').textContent=`${r.reporter}の${r.type}`;
+  const rows=[
+    ['日付',r.date],
+    ['場所',r.location],
+    ['作業概要',r.summary],
+    ['実施内容',r.detail],
+    ['問題点・特記事項',r.issue||'特になし'],
+    ['次回アクション',r.next||'—'],
+    r.note&&['補足',r.note],
+    r.raw&&['元音声テキスト',r.raw],
+  ].filter(Boolean);
+  document.getElementById('mBody').innerHTML=rows.map(([l,v])=>`
+    <div class="drow">
+      <div class="dlabel">${l}</div>
+      <div class="dval">${v}</div>
+    </div>`).join('');
+  document.getElementById('overlay').classList.add('on');
+}
+
+function closeModal(e){
+  if(!e||e.target===document.getElementById('overlay'))
+    document.getElementById('overlay').classList.remove('on');
+}
+
+// ─── Toast ───────────────────────────────────────────────
+function showToast(msg){
+  const t=document.getElementById('toast');
+  t.textContent=msg; t.classList.add('on');
+  setTimeout(()=>t.classList.remove('on'),2800);
+}
+</script>
+</body>
+</html>
