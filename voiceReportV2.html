@@ -643,34 +643,43 @@ function launchSession(){
   sessionActive = true;
 
   rec.lang            = 'ja-JP';
-  rec.continuous      = false;
+  rec.continuous      = true;   // リアルタイム表示のためtrueが必須
   rec.interimResults  = true;
   rec.maxAlternatives = 1;
 
-  // isFinalを受け取ったresultIndexを記録して二重処理を防ぐ
+  // 確定済みresultIndexを記録（重複追記防止の核心）
   const processedIdx = new Set();
+  // このセッション開始時点のglobalFinalを固定（再起動でも変わらない基点）
+  const baseAtStart  = globalFinal;
 
   rec.onresult = (e) => {
-    let addedFinal = false;
+    // ① isFinalのみ processedIdx でガードして globalFinal に追記
     for(let i = e.resultIndex; i < e.results.length; i++){
       if(e.results[i].isFinal && !processedIdx.has(i)){
         processedIdx.add(i);
-        globalFinal += e.results[i][0].transcript; // その場で確定・追記
+        globalFinal += e.results[i][0].transcript;
         rawText      = globalFinal;
-        addedFinal   = true;
       }
     }
-    // interimは末尾の未確定結果だけ（表示専用、rawTextに混入しない）
+
+    // ② interimは「末尾の未確定結果」だけ取り出す（表示専用）
     let interim = '';
     const last = e.results[e.results.length - 1];
     if(!last.isFinal) interim = last[0].transcript;
 
+    // ③ 表示更新（確定済み＋認識中）
     updateDisplay(rawText, interim);
-    if(addedFinal) updateButtons();
+    updateButtons();
   };
 
   rec.onerror = (e) => {
-    if(e.error === 'aborted' || e.error === 'no-speech') return;
+    if(e.error === 'aborted') return;
+    if(e.error === 'no-speech'){
+      // 無音タイムアウト: 再起動（globalFinalは既に最新）
+      sessionActive = false;
+      if(isRecording) setTimeout(launchSession, 120);
+      return;
+    }
     console.warn('rec error:', e.error);
   };
 
