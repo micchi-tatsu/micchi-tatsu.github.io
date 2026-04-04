@@ -617,7 +617,7 @@ function insertDemo(){
 // ── 音声認識: continuous=false の1発話1確定方式 ──────────
 // 1セッション=1発話。確定テキストは globalFinal に追記。
 
-let globalFinal = '';    // 確定済み全テキスト（rawTextと常に同値）
+let globalFinal = '';     // 確定済み全テキスト（rawTextと常に同値）
 let sessionActive = false;
 
 function toggleMain(){
@@ -634,6 +634,16 @@ function startMain(){
   launchSession();
 }
 
+// ── 設計方針 ────────────────────────────────────────────────────
+// isFinalが来たら「その場で」rawText/globalFinalに追記する。
+// onend/commitでは追記しない → 二重追記の根本的な排除。
+//
+// 重複防止: finalMap (Map<index, text>) で管理。
+//   同じindexが何度来ても上書きされるだけ。
+//   ただし「既に追記済みのindex」はaddedSet(Set)で記録し、
+//   rawTextへの追記は未追記のindexのみ行う。
+// ────────────────────────────────────────────────────────────────
+
 function launchSession(){
   if(!isRecording || sessionActive) return;
   sessionActive = true;
@@ -642,63 +652,39 @@ function launchSession(){
   const rec = new SR();
   recognition = rec;
 
-  rec.lang           = 'ja-JP';
-  rec.continuous     = true;
-  rec.interimResults = true;
+  rec.lang            = 'ja-JP';
+  rec.continuous      = true;
+  rec.interimResults  = true;
   rec.maxAlternatives = 1;
 
-  // ── 設計 ──────────────────────────────────────────────────
-  // baseText     : このセッション開始時点のglobalFinal（不変）
-  // sessionText  : このセッションのisFinal確定テキスト（純粋に今回分だけ）
-  // isFinalで来た結果は resultIndex でインデックス管理し、
-  //   「そのインデックスで最後に来た確定テキスト」を採用する（上書き方式）。
-  // → 同じ resultIndex が複数回来ても最新で上書きされるだけで重複しない。
-  // onend では rawText/globalFinal へ1回だけ書き込む。
-  // ──────────────────────────────────────────────────────────
-
-  const baseText = globalFinal;          // セッション開始時の確定済みテキスト
-  const finalMap = new Map();            // resultIndex → 確定テキスト（上書き方式）
-
-  function getSessionText(){
-    // Mapの値を resultIndex 順に並べて結合
-    return [...finalMap.entries()]
-      .sort((a,b) => a[0] - b[0])
-      .map(e => e[1])
-      .join('');
-  }
+  // rawTextに追記済みのresultIndex（このセッション内で一度でも確定したindex）
+  const addedSet = new Set();
 
   rec.onresult = (e) => {
-    // isFinal: Mapに上書き保存（同indexが何度来ても最新だけ残る）
     for(let i = e.resultIndex; i < e.results.length; i++){
-      if(e.results[i].isFinal){
-        finalMap.set(i, e.results[i][0].transcript);
+      if(e.results[i].isFinal && !addedSet.has(i)){
+        addedSet.add(i);
+        const word = e.results[i][0].transcript;
+        rawText     += word;
+        globalFinal += word;
       }
     }
-
-    // interim: 末尾の未確定結果のみ（表示専用・rawTextに混入しない）
+    // interim: 末尾の未確定結果のみ（表示専用）
     let interim = '';
     const last = e.results[e.results.length - 1];
     if(!last.isFinal) interim = last[0].transcript;
 
-    // 表示: baseText + 今セッションの確定分 + interim
-    updateDisplay(baseText + getSessionText(), interim);
+    updateDisplay(rawText, interim);
     updateButtons();
   };
 
   rec.onerror = (e) => {
-    if(e.error === 'aborted') return;
-    if(e.error === 'no-speech'){
-      // 無音タイムアウト → セッション確定して再起動
-      commitSession();
-      sessionActive = false;
-      if(isRecording) setTimeout(launchSession, 100);
-      return;
-    }
+    if(e.error === 'aborted' || e.error === 'no-speech') return;
     console.warn('rec error:', e.error);
   };
 
   rec.onend = () => {
-    commitSession();
+    // ここでは rawText/globalFinal に触らない（onresultで追記済み）
     sessionActive = false;
     updateDisplay(rawText, '');
     if(isRecording){
@@ -707,15 +693,6 @@ function launchSession(){
       setRecState(false);
     }
   };
-
-  function commitSession(){
-    const added = getSessionText();
-    if(added){
-      globalFinal = baseText + added;
-      rawText     = globalFinal;
-    }
-    updateButtons();
-  }
 
   try {
     rec.start();
