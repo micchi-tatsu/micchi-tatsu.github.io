@@ -617,9 +617,10 @@ function insertDemo(){
 // ── 音声認識: continuous=false の1発話1確定方式 ──────────
 // 1セッション=1発話。確定テキストは globalFinal に追記。
 
-let globalFinal   = '';
-let sessionActive = false;
-let activePauseTimer = null; // セッションをまたいで参照できるタイマーID
+let globalFinal      = '';
+let sessionActive    = false;
+let activePauseTimer = null;
+let dotAddedAt       = null;  // 「。」追加時刻（グローバル管理）
 
 function toggleMain(){
   isRecording ? stopMain() : startMain();
@@ -628,23 +629,62 @@ function toggleMain(){
 function startMain(){
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   if(!SR){ alert('Chrome または Edge をご使用ください'); return; }
-  isRecording = true;
-  globalFinal = rawText;
+  isRecording  = true;
+  globalFinal  = rawText;
+  dotAddedAt   = null;
   setRecState(true);
   setStep(2);
   launchSession();
 }
 
-// ── 設計 ────────────────────────────────────────────────────────
-// Android ChromeのWeb Speech APIは以下の問題がある：
-//   1. continuous=trueでもセッションが短時間で強制終了・再起動する
-//   2. 再起動後にresultIndexが0からリセットされる
-//   3. isFinal=trueの結果が再送されることがある
-//
-// 解決策：indexによる管理を完全廃止。
-// 「直前に確定したN文字」をバッファとして保持し、
-// 新しいisFinal結果がそのバッファで終わっている場合は重複とみなして無視する。
-// ────────────────────────────────────────────────────────────────
+// ── 句点タイマー（グローバル関数として定義） ─────────────────────
+// PAUSE_MS : 無音→句点追加までの時間
+// KEEP_MS  : 句点追加後、削除できる猶予時間
+//   ・猶予内(≦KEEP_MS)に発話 → 句点を削除して続きを追記
+//   ・猶予超え(>KEEP_MS)に発話 → 句点を残して続きを追記
+const PAUSE_MS = 30000;
+const KEEP_MS  = 60000;
+
+function startPauseTimer(){
+  if(activePauseTimer) clearTimeout(activePauseTimer);
+  activePauseTimer = setTimeout(()=>{
+    activePauseTimer = null;
+    if(rawText && !/[。！？]$/.test(rawText)){
+      rawText    += '。';
+      globalFinal = rawText;
+      dotAddedAt  = Date.now();
+      updateDisplay(rawText, '');
+      updateButtons();
+    }
+  }, PAUSE_MS);
+}
+
+function cancelPauseTimer(){
+  if(activePauseTimer){ clearTimeout(activePauseTimer); activePauseTimer = null; }
+}
+
+// 新しい確定テキストをrawTextに追記する
+// 句点の削除判定もここで行う
+function appendConfirmed(word){
+  if(!word) return;
+
+  if(dotAddedAt !== null && rawText.endsWith('。')){
+    const elapsed = Date.now() - dotAddedAt;
+    if(elapsed <= KEEP_MS){
+      // 猶予内 → 句点を削除して続けて追記（同じ文として扱う）
+      rawText = rawText.slice(0, -1) + word;
+    } else {
+      // 猶予超え → 句点を残して追記（別の文として扱う）
+      rawText += word;
+    }
+    dotAddedAt = null;
+  } else {
+    rawText += word;
+  }
+  globalFinal = rawText;
+  // 追記後にタイマーをリセット
+  startPauseTimer();
+}
 
 function launchSession(){
   if(!isRecording || sessionActive) return;
@@ -659,55 +699,9 @@ function launchSession(){
   rec.interimResults  = true;
   rec.maxAlternatives = 1;
 
-  // ── 無音タイマー＆句点管理 ──────────────────────────────────
-  // ルール:
-  //   1. isFinal確定から PAUSE_MS(30秒)無音 → rawTextに「。」を追加
-  //   2. 「。」追加後 KEEP_MS(60秒)以内に次の発話 → 「。」を削除して続きを追記
-  //   3. 「。」追加後 KEEP_MS(60秒)超えてから発話 → 「。」を残して続きを追記
-  const PAUSE_MS = 30000;
-  const KEEP_MS  = 60000;
-
-  let pauseTimer = null;
-  let dotAddedAt = null; // 「。」を追加した時刻 (Date.now())
-
-  function resetPauseTimer(){
-    if(pauseTimer) clearTimeout(pauseTimer);
-    pauseTimer = setTimeout(()=>{
-      if(rawText && !/[。！？]$/.test(rawText)){
-        rawText    += '。';
-        globalFinal = rawText;
-        dotAddedAt  = Date.now();
-        updateDisplay(rawText, '');
-        updateButtons();
-      }
-      pauseTimer = null;
-    }, PAUSE_MS);
-    activePauseTimer = pauseTimer;
-  }
-
-  function clearPauseTimer(){
-    if(pauseTimer){ clearTimeout(pauseTimer); pauseTimer = null; }
-    activePauseTimer = null;
-  }
-
-  function handleNewWord(word){
-    if(dotAddedAt !== null){
-      const elapsed = Date.now() - dotAddedAt;
-      if(elapsed <= KEEP_MS && rawText.endsWith('。')){
-        // 60秒以内 → 句点を削除して続けて追記
-        rawText = rawText.slice(0, -1) + word;
-      } else {
-        // 60秒超え → 句点を残して追記
-        rawText += word;
-      }
-      dotAddedAt = null;
-    } else {
-      rawText += word;
-    }
-    globalFinal = rawText;
-    resetPauseTimer();
-  }
-  // ─────────────────────────────────────────────────────────────
+  // このセッションで追記済みのword文字列セット（完全一致重複防止）
+  // セッションをまたいだ重複は rawText.endsWith で防ぐ
+  const addedWords = new Set();
 
   rec.onresult = (e) => {
     for(let i = e.resultIndex; i < e.results.length; i++){
@@ -716,10 +710,16 @@ function launchSession(){
       const word = e.results[i][0].transcript;
       if(!word) continue;
 
-      // 重複チェック
-      if(rawText.endsWith(word)) continue;
+      // このセッションで既に同じwordを追記済みならスキップ
+      if(addedWords.has(word)) continue;
 
-      // 部分重複チェック
+      // rawTextが既にこのwordで終わっているなら重複
+      if(rawText.endsWith(word)){
+        addedWords.add(word);
+        continue;
+      }
+
+      // rawTextの末尾がwordの先頭と部分重複している場合
       let toAdd = word;
       for(let len = Math.min(word.length - 1, 20); len > 0; len--){
         if(rawText.endsWith(word.slice(0, len))){
@@ -728,7 +728,10 @@ function launchSession(){
         }
       }
 
-      if(toAdd) handleNewWord(toAdd);
+      if(toAdd){
+        addedWords.add(word);
+        appendConfirmed(toAdd);
+      }
     }
 
     // interim: 末尾の未確定結果のみ（表示専用）
@@ -746,7 +749,6 @@ function launchSession(){
   };
 
   rec.onend = () => {
-    clearPauseTimer(); // セッション終了時はタイマーをキャンセル
     sessionActive = false;
     updateDisplay(rawText, '');
     if(isRecording){
@@ -767,8 +769,7 @@ function launchSession(){
 
 function stopMain(){
   isRecording = false;
-  // 無音タイマーをキャンセル
-  if(activePauseTimer){ clearTimeout(activePauseTimer); activePauseTimer = null; }
+  cancelPauseTimer();
   if(recognition){
     try { recognition.stop(); } catch(e){}
     recognition = null;
@@ -841,6 +842,8 @@ function updateButtons(){
 function clearRaw(){
   rawText     = '';
   globalFinal = '';
+  dotAddedAt  = null;
+  cancelPauseTimer();
   aiDone = false;
   setRaw('');
   if(document.getElementById('textInput'))
@@ -1083,6 +1086,8 @@ function saveReport(){
 function resetForm(){
   rawText     = '';
   globalFinal = '';
+  dotAddedAt  = null;
+  cancelPauseTimer();
   aiDone = false;
   setRaw('');
   clearStruct();
