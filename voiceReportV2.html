@@ -619,9 +619,11 @@ function insertDemo(){
 
 let globalFinal      = '';
 let sessionActive    = false;
-let activePauseTimer = null;  // 読点タイマーID
-let activeKutenTimer = null;  // 句点タイマーID
-let lastFinalAt      = null;  // 最後にisFinalを受け取った時刻
+let activePauseTimer = null;   // 読点タイマーID
+let activeKutenTimer = null;   // 句点タイマーID
+// addedWords: セッションをまたいで重複追記を防ぐためグローバルで管理。
+// startMain()時にリセット、launchSession()ではリセットしない。
+let addedWords = new Set();
 
 function toggleMain(){
   isRecording ? stopMain() : startMain();
@@ -632,7 +634,7 @@ function startMain(){
   if(!SR){ alert('Chrome または Edge をご使用ください'); return; }
   isRecording = true;
   globalFinal = rawText;
-  lastFinalAt = null;
+  addedWords  = new Set();   // 録音開始時のみリセット
   setRecState(true);
   setStep(2);
   launchSession();
@@ -704,19 +706,25 @@ function launchSession(){
   rec.interimResults  = true;
   rec.maxAlternatives = 1;
 
-  const addedWords = new Set();
+  // processedUpTo: このセッションで処理済みのresultIndex上限。
+  // セッション再起動後は0から始まるが、Chrome が前セッションの
+  // results を引き継いで再送することがあるため addedWords で二重防止。
+  let processedUpTo = 0;
 
   rec.onresult = (e) => {
     for(let i = e.resultIndex; i < e.results.length; i++){
       if(!e.results[i].isFinal) continue;
+      if(i < processedUpTo) continue;   // 再送されたindexはスキップ
+      processedUpTo = i + 1;
 
       const word = e.results[i][0].transcript;
       if(!word) continue;
 
+      // セッションをまたいだ重複チェック（addedWordsはグローバル）
       if(addedWords.has(word)) continue;
       if(rawText.endsWith(word)){ addedWords.add(word); continue; }
 
-      // 部分重複チェック
+      // 部分重複チェック（rawTextの末尾とwordの先頭が重なる場合）
       let toAdd = word;
       for(let len = Math.min(word.length - 1, 20); len > 0; len--){
         if(rawText.endsWith(word.slice(0, len))){
