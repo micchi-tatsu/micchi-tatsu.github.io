@@ -610,6 +610,15 @@ function insertDemo(){
 }
 
 // ─── Main Voice ──────────────────────────────────────────
+// 設計方針:
+//   confirmedText = isFinal確定済みテキストの蓄積専用変数
+//   rawText       = 保存・AI送信用（confirmedTextと同じ）
+//   interimText   = 表示専用。rawTextには混入させない
+//   セッション再起動なし: onendでisRecordingがtrueなら再起動するが
+//                         その際confirmedTextを引き継ぐ
+
+let confirmedText = '';  // isFinal確定済みテキスト（唯一の真の蓄積場所）
+
 function toggleMain(){
   isRecording ? stopMain() : startMain();
 }
@@ -617,60 +626,162 @@ function toggleMain(){
 function startMain(){
   const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
   if(!SR){alert('Chrome または Edge をご使用ください（Web Speech API 対応）');return;}
-  recognition=new SR();
-  recognition.lang='ja-JP';
-  recognition.continuous=true;
-  recognition.interimResults=true;
-  let final=rawText;
-  recognition.onresult=e=>{
-    let interim='';
-    for(let i=e.resultIndex;i<e.results.length;i++){
-      if(e.results[i].isFinal) final+=e.results[i][0].transcript;
-      else interim+=e.results[i][0].transcript;
-    }
-    rawText=final;
-    setRaw(final+interim);
-  };
-  recognition.onerror=()=>setRecState(false);
-  recognition.onend=()=>{ if(isRecording) recognition.start(); };
-  recognition.start();
+
+  isRecording = true;
   setRecState(true);
   setStep(2);
+  launchRecognition();
+}
+
+function launchRecognition(){
+  if(!isRecording) return;
+
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  recognition = new SR();
+  recognition.lang = 'ja-JP';
+  recognition.continuous = true;
+  recognition.interimResults = true;
+  recognition.maxAlternatives = 1;
+
+  // このセッション内でのfinalテキスト蓄積
+  // セッションをまたぐ場合はconfirmedTextが引き継がれる
+  let sessionFinal = '';
+
+  recognition.onresult = (e) => {
+    // resultIndexからのみ処理（重複防止の核心）
+    for(let i = e.resultIndex; i < e.results.length; i++){
+      const result = e.results[i];
+      if(result.isFinal){
+        sessionFinal += result[0].transcript;
+      }
+    }
+
+    // interimは最後の未確定結果のみ取得
+    let interim = '';
+    const last = e.results[e.results.length - 1];
+    if(!last.isFinal){
+      interim = last[0].transcript;
+    }
+
+    // confirmedText = セッション前の確定済み + 今セッションの確定済み
+    confirmedText = rawText + sessionFinal;
+
+    // 表示: 確定済み + 現在のinterim（薄字で区別）
+    updateDisplay(confirmedText, interim);
+  };
+
+  recognition.onerror = (e) => {
+    // network/no-speechエラーは無視して継続、abort以外は再起動
+    if(e.error === 'aborted') return;
+    if(e.error === 'no-speech'){
+      // 無音タイムアウト: セッション再起動
+      if(isRecording){
+        rawText = confirmedText;
+        launchRecognition();
+      }
+      return;
+    }
+    console.warn('SpeechRecognition error:', e.error);
+  };
+
+  recognition.onend = () => {
+    // isFinalが来る前にセッションが終わった場合、sessionFinalを確定
+    rawText = rawText + sessionFinal;
+    confirmedText = rawText;
+
+    if(isRecording){
+      // 録音継続中: 自動再起動
+      setTimeout(()=>launchRecognition(), 100);
+    } else {
+      // 停止操作による終了
+      updateDisplay(rawText, '');
+      setRecState(false);
+    }
+  };
+
+  try {
+    recognition.start();
+  } catch(err){
+    // 既に起動中などの場合
+    console.warn('recognition.start() error:', err);
+  }
 }
 
 function stopMain(){
-  recognition?.stop(); recognition=null;
-  setRecState(false);
+  isRecording = false;
+  if(recognition){
+    recognition.stop();
+    recognition = null;
+  }
+  // onendで setRecState(false) が呼ばれる
 }
 
 function setRecState(on){
-  isRecording=on;
-  document.getElementById('bigMic').classList.toggle('on',on);
-  document.getElementById('bigMic').textContent=on?'⏹':'🎤';
-  document.getElementById('waveMain').classList.toggle('hide',!on);
-  const h=document.getElementById('vcHint');
-  h.className='voice-hint'+(on?' on':'');
-  h.innerHTML=on?'録音中 — もう一度タップで停止':'タップして録音開始<br><small style="color:var(--t3)">作業内容を自由に話してください</small>';
-  document.getElementById('btnAI').disabled=!rawText;
-  document.getElementById('btnClear').disabled=!rawText;
+  const micBtn = document.getElementById('bigMic');
+  if(micBtn){
+    micBtn.classList.toggle('on', on);
+    micBtn.textContent = on ? '⏹' : '🎤';
+  }
+  const wave = document.getElementById('waveMain');
+  if(wave) wave.classList.toggle('hide', !on);
+  const h = document.getElementById('vcHint');
+  if(h){
+    h.className = 'voice-hint' + (on ? ' on' : '');
+    h.innerHTML = on
+      ? '録音中 — もう一度タップで停止'
+      : (rawText
+          ? '録音完了 — AIで整形してください'
+          : 'タップして録音開始<br><small style="color:var(--t3)">作業内容を自由に話してください</small>');
+  }
+  updateButtons();
+}
+
+function updateDisplay(confirmed, interim){
+  const b = document.getElementById('rawBox');
+  if(!b) return;
+  if(!confirmed && !interim){
+    b.innerHTML = '<span style="color:var(--t3);font-style:italic">音声の文字起こしがここに表示されます...</span>';
+    b.className = 'raw-box empty';
+    return;
+  }
+  b.className = 'raw-box';
+  // interimを薄いグレーで表示して確定済みと視覚的に区別
+  const interimHtml = interim
+    ? `<span style="color:var(--t3)">${escHtml(interim)}</span>`
+    : '';
+  b.innerHTML = escHtml(confirmed) + interimHtml;
+  updateButtons();
+}
+
+function escHtml(s){
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
 
 function setRaw(t){
-  const b=document.getElementById('rawBox');
-  b.textContent=t||'';
-  b.className='raw-box'+(t?'':' empty');
-  if(!t) b.textContent='音声の文字起こしがここに表示されます...';
-  document.getElementById('btnAI').disabled=!rawText;
-  document.getElementById('btnClear').disabled=!rawText;
+  // クリア操作用
+  rawText = t;
+  confirmedText = t;
+  updateDisplay(t, '');
+}
+
+function updateButtons(){
+  const hasText = !!(rawText || confirmedText);
+  const btnAI = document.getElementById('btnAI');
+  const btnClear = document.getElementById('btnClear');
+  if(btnAI) btnAI.disabled = !hasText;
+  if(btnClear) btnClear.disabled = !hasText;
 }
 
 function clearRaw(){
-  rawText=''; aiDone=false;
+  rawText = '';
+  confirmedText = '';
+  aiDone = false;
   setRaw('');
   if(document.getElementById('textInput'))
-    document.getElementById('textInput').value='';
+    document.getElementById('textInput').value = '';
   clearStruct();
-  document.getElementById('saveBtn').disabled=true;
+  document.getElementById('saveBtn').disabled = true;
+  updateButtons();
   setStep(1);
 }
 
@@ -719,58 +830,73 @@ function micField(fieldId,btnId){
 
 // ─── AI ──────────────────────────────────────────────────
 async function runAI(){
-  if(!rawText.trim()) return;
+  // 音声モードはconfirmedText、テキストモードはtextInput.valueを使う
+  const inputText = currentMode === 'text'
+    ? (document.getElementById('textInput')?.value || '').trim()
+    : confirmedText.trim();
+
+  if(!inputText){ showToast('⚠️ 入力内容がありません'); return; }
+
+  // AIに渡す前にrawTextも同期しておく
+  rawText = inputText;
+
   if(isRecording) stopMain();
 
-  document.getElementById('btnAI').disabled=true;
+  document.getElementById('btnAI').disabled = true;
   document.getElementById('aiThink').classList.add('on');
   setStep(3);
 
-  const reporter=document.getElementById('fReporter').value||'未入力';
-  const date=document.getElementById('fDate').value;
-  const type=document.getElementById('fType').value;
-  const loc=document.getElementById('fLocation').value||'未指定';
+  const reporter = document.getElementById('fReporter').value || '未入力';
+  const date     = document.getElementById('fDate').value;
+  const type     = document.getElementById('fType').value;
+  const loc      = document.getElementById('fLocation').value || '未指定';
 
-  const prompt=`あなたは業務報告書の整形AIです。
-以下の音声入力テキストから、各項目を抽出・整形してください。
+  const prompt =
+`業務報告書の整形AIです。以下の音声テキストを4項目のJSONに整形してください。
 
-【メタ情報】
 報告者:${reporter} / 日付:${date} / 種別:${type} / 場所:${loc}
 
-【音声入力テキスト】
-${rawText}
+音声テキスト:
+${inputText}
 
-必ず以下のJSONのみを返してください（他の文字は一切不要）:
-{
-  "summary": "作業概要を1〜2文で",
-  "detail": "実施内容を箇条書き（・で始まる各行）で",
-  "issue": "問題点・特記事項を簡潔に。なければ空文字",
-  "next": "次回アクション・引き継ぎ事項。なければ空文字"
-}`;
+返答はJSONのみ。前後に余計な文字・コードブロックは不要です。
+{"summary":"作業概要を1〜2文","detail":"・箇条書き1\n・箇条書き2","issue":"問題点。なければ空文字","next":"次のアクション。なければ空文字"}`;
 
   try {
-    const res=await fetch('https://api.anthropic.com/v1/messages',{
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({
-        model:'claude-sonnet-4-20250514',
-        max_tokens:1000,
-        messages:[{role:'user',content:prompt}]
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 1000,
+        messages: [{ role: 'user', content: prompt }]
       })
     });
-    const data=await res.json();
-    const text=data.content?.map(b=>b.text||'').join('')||'';
-    const json=JSON.parse(text.replace(/```json|```/g,'').trim());
-    fillStruct(json);
-  } catch(e) {
-    // Demo fallback
-    fillStruct(demoFill(rawText,type,loc));
+
+    if(!res.ok) throw new Error('API error: ' + res.status);
+
+    const data = await res.json();
+    const raw  = (data.content || []).map(b => b.text || '').join('').trim();
+
+    // コードブロックや余分な文字を除去してJSONだけ取り出す
+    const jsonStr = raw
+      .replace(/^```(?:json)?/,'').replace(/```$/,'') // バッククォート除去
+      .replace(/^[^{]*/,'')  // { より前の文字を除去
+      .replace(/[^}]*$/,'')  // } より後の文字を除去
+      .trim();
+
+    const parsed = JSON.parse(jsonStr);
+    fillStruct(parsed);
+
+  } catch(err) {
+    console.warn('AI error, using demo fill:', err);
+    fillStruct(demoFill(inputText, type, loc));
   }
 
   document.getElementById('aiThink').classList.remove('on');
-  document.getElementById('btnAI').disabled=false;
-  document.getElementById('saveBtn').disabled=false;
-  aiDone=true;
+  document.getElementById('btnAI').disabled = false;
+  document.getElementById('saveBtn').disabled = false;
+  aiDone = true;
   setStep(4);
 }
 
@@ -822,7 +948,9 @@ function saveReport(){
 }
 
 function resetForm(){
-  rawText=''; aiDone=false;
+  rawText = '';
+  confirmedText = '';
+  aiDone = false;
   setRaw('');
   clearStruct();
   document.getElementById('fReporter').value='';
