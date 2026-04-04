@@ -11,8 +11,6 @@
     --bg: #0d0f14; --surface: #161921; --border: #252a35;
     --accent: #00e5a0; --accent2: #005f42; --danger: #ff4560;
     --text: #e8eaf0; --muted: #6b7280;
-    --highlight-bg: rgba(0,229,160,0.18);
-    --highlight-color: #00e5a0;
   }
   body {
     background: var(--bg); color: var(--text);
@@ -30,32 +28,6 @@
   .header { text-align: center; }
   .header h1 { font-family: 'Space Mono', monospace; font-size: 1.1rem; font-weight: 400; color: var(--accent); letter-spacing: 0.3em; text-transform: uppercase; margin-bottom: 0.4rem; }
   .header p { font-size: 0.85rem; color: var(--muted); }
-
-  /* Mode toggle */
-  .mode-toggle {
-    display: flex; align-items: center; gap: 0.75rem;
-    background: var(--surface); border: 1px solid var(--border);
-    border-radius: 10px; padding: 0.6rem 1rem;
-    font-family: 'Space Mono', monospace; font-size: 0.68rem;
-    letter-spacing: 0.12em; text-transform: uppercase;
-  }
-  .mode-label { color: var(--muted); white-space: nowrap; }
-  .mode-label.active { color: var(--accent); }
-  .toggle-switch {
-    position: relative; width: 42px; height: 22px; cursor: pointer;
-  }
-  .toggle-switch input { opacity: 0; width: 0; height: 0; }
-  .toggle-track {
-    position: absolute; inset: 0; background: var(--border);
-    border-radius: 11px; transition: background 0.25s;
-  }
-  .toggle-switch input:checked + .toggle-track { background: var(--accent2); border: 1px solid var(--accent); }
-  .toggle-thumb {
-    position: absolute; top: 3px; left: 3px;
-    width: 16px; height: 16px; border-radius: 50%;
-    background: var(--muted); transition: transform 0.25s, background 0.25s;
-  }
-  .toggle-switch input:checked ~ .toggle-thumb { transform: translateX(20px); background: var(--accent); }
 
   /* Mic */
   .mic-area { display: flex; flex-direction: column; align-items: center; gap: 1.5rem; }
@@ -82,19 +54,18 @@
   .visualizer { width: 200px; height: 48px; display: flex; align-items: center; justify-content: center; gap: 3px; }
   .bar { width: 4px; border-radius: 2px; background: var(--accent); opacity: 0.3; height: 4px; }
   .recording .bar { opacity: 1; animation: wave 0.8s ease-in-out infinite alternate; }
-  .bar:nth-child(1){animation-delay:0s}.bar:nth-child(2){animation-delay:.07s}
-  .bar:nth-child(3){animation-delay:.14s}.bar:nth-child(4){animation-delay:.21s}
-  .bar:nth-child(5){animation-delay:.28s}.bar:nth-child(6){animation-delay:.35s}
-  .bar:nth-child(7){animation-delay:.28s}.bar:nth-child(8){animation-delay:.21s}
-  .bar:nth-child(9){animation-delay:.14s}.bar:nth-child(10){animation-delay:.07s}
-  .bar:nth-child(11){animation-delay:0s}.bar:nth-child(12){animation-delay:.07s}
-  .bar:nth-child(13){animation-delay:.14s}
+  .bar:nth-child(1) { animation-delay:0s } .bar:nth-child(2) { animation-delay:.07s }
+  .bar:nth-child(3) { animation-delay:.14s } .bar:nth-child(4) { animation-delay:.21s }
+  .bar:nth-child(5) { animation-delay:.28s } .bar:nth-child(6) { animation-delay:.35s }
+  .bar:nth-child(7) { animation-delay:.28s } .bar:nth-child(8) { animation-delay:.21s }
+  .bar:nth-child(9) { animation-delay:.14s } .bar:nth-child(10) { animation-delay:.07s }
+  .bar:nth-child(11) { animation-delay:0s } .bar:nth-child(12) { animation-delay:.07s }
+  .bar:nth-child(13) { animation-delay:.14s }
   @keyframes wave { 0% { height: 4px; } 100% { height: 36px; } }
 
   .status { font-family: 'Space Mono', monospace; font-size: 0.75rem; letter-spacing: 0.2em; color: var(--muted); text-transform: uppercase; min-height: 1.2em; }
   .status.on  { color: var(--accent); }
   .status.err { color: var(--danger); }
-  .status.processing { color: #f59e0b; }
 
   /* Transcript */
   .transcript-box { width: 100%; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 1.2rem 1.4rem; min-height: 120px; transition: border-color 0.3s; }
@@ -107,45 +78,10 @@
   .interim { color: var(--muted); font-style: italic; }
   .placeholder { color: var(--muted); font-size: 0.9rem; }
 
-  /* Highlighted punctuation added by AI */
-  .punct-added {
-    background: var(--highlight-bg);
-    color: var(--highlight-color);
-    border-radius: 2px;
-    padding: 0 1px;
-    font-weight: 700;
-  }
-
-  /* Processing overlay on transcript */
-  .transcript-box.processing { border-color: #f59e0b33; }
-  .transcript-box.processing .transcript-label::before { background: #f59e0b; box-shadow: 0 0 6px #f59e0b; animation: blink 0.5s step-end infinite; }
-
-  /* Punctuation info */
-  .punct-info {
-    width: 100%; display: flex; align-items: center; gap: 0.5rem;
-    min-height: 1.4rem;
-  }
-  .punct-badge {
-    font-family: 'Space Mono', monospace; font-size: 0.62rem;
-    letter-spacing: 0.1em; padding: 0.2rem 0.6rem;
-    border-radius: 4px; text-transform: uppercase;
-    opacity: 0; transition: opacity 0.3s;
-  }
-  .punct-badge.show { opacity: 1; }
-  .punct-badge.api  { background: rgba(0,229,160,0.12); color: var(--accent); border: 1px solid var(--accent2); }
-  .punct-badge.local { background: rgba(107,114,128,0.15); color: var(--muted); border: 1px solid var(--border); }
-  .punct-badge.none  { background: rgba(255,69,96,0.1); color: var(--danger); border: 1px solid rgba(255,69,96,0.3); }
-  .punct-count { font-family: 'Space Mono', monospace; font-size: 0.62rem; color: var(--muted); }
-
   .actions { display: flex; gap: 0.75rem; width: 100%; }
   .btn { flex: 1; padding: 0.65rem 1rem; border-radius: 8px; border: 1px solid var(--border); background: transparent; color: var(--muted); font-family: 'Space Mono', monospace; font-size: 0.72rem; letter-spacing: 0.1em; cursor: pointer; transition: all 0.2s; text-transform: uppercase; }
   .btn:hover { border-color: var(--accent); color: var(--accent); background: rgba(0,229,160,0.05); }
   .btn:disabled { opacity: 0.3; cursor: not-allowed; }
-  .btn.revert-btn { flex: 0.7; }
-
-  /* Spinner inside status */
-  @keyframes spin { to { transform: rotate(360deg); } }
-  .spinner { display: inline-block; width: 10px; height: 10px; border: 1.5px solid transparent; border-top-color: #f59e0b; border-radius: 50%; animation: spin 0.7s linear infinite; vertical-align: middle; margin-right: 4px; }
 </style>
 </head>
 <body>
@@ -153,17 +89,6 @@
   <div class="header">
     <h1>Voice Input</h1>
     <p>ボタンを押して話しかけてください</p>
-  </div>
-
-  <!-- Mode toggle -->
-  <div class="mode-toggle">
-    <span class="mode-label" id="labelLocal">ローカル</span>
-    <label class="toggle-switch">
-      <input type="checkbox" id="modeToggle">
-      <div class="toggle-track"></div>
-      <div class="toggle-thumb"></div>
-    </label>
-    <span class="mode-label" id="labelApi">Claude API</span>
   </div>
 
   <div class="mic-area">
@@ -195,14 +120,8 @@
     <div id="transcript-text"><span class="placeholder">認識した文字がここに表示されます...</span></div>
   </div>
 
-  <div class="punct-info">
-    <span class="punct-badge" id="punctBadge"></span>
-    <span class="punct-count" id="punctCount"></span>
-  </div>
-
   <div class="actions">
     <button class="btn" id="copyBtn" disabled>コピー</button>
-    <button class="btn revert-btn" id="revertBtn" disabled>元に戻す</button>
     <button class="btn" id="clearBtn" disabled>クリア</button>
   </div>
 </div>
@@ -218,20 +137,6 @@ const transcriptBox = document.getElementById('transcriptBox');
 const transcriptText= document.getElementById('transcript-text');
 const copyBtn       = document.getElementById('copyBtn');
 const clearBtn      = document.getElementById('clearBtn');
-const revertBtn     = document.getElementById('revertBtn');
-const modeToggle    = document.getElementById('modeToggle');
-const labelLocal    = document.getElementById('labelLocal');
-const labelApi      = document.getElementById('labelApi');
-const punctBadge    = document.getElementById('punctBadge');
-const punctCount    = document.getElementById('punctCount');
-
-// ─── Toggle UI ───────────────────────────────────────
-modeToggle.addEventListener('change', () => {
-  const isApi = modeToggle.checked;
-  labelLocal.classList.toggle('active', !isApi);
-  labelApi.classList.toggle('active', isApi);
-});
-labelLocal.classList.add('active'); // 初期: ローカル
 
 if (!SpeechRecognition) {
   micBtn.disabled = true;
@@ -240,257 +145,46 @@ if (!SpeechRecognition) {
   transcriptText.innerHTML = '<span style="color:var(--danger)">Chrome/Edgeをお使いください</span>';
 } else {
 
-  let isRecording  = false;
-  let finalText    = '';       // 補完後のテキスト（表示・コピー用）
-  let rawText      = '';       // 補完前の生テキスト（revert用）
-  let recognition  = null;
-  let isProcessing = false;
+  // ─── 状態 ───────────────────────────────────────────
+  let isRecording = false;   // ユーザーが「録音したい」状態か
+  let finalText   = '';      // 確定済み全文
+  let recognition = null;
 
-  // ─── ローカル句読点補完 ──────────────────────────────
-  // 返値: { result: string, count: number }
-  function localPunctuation(text) {
-    if (!text.trim()) return { result: text, count: 0 };
-
-    // 接続詞・助詞のあとに読点
-    const readings = [
-      // 文頭・接続詞
-      { p: /([そだしかでもしかしでもそれからさらにまたそしてつまりただしなぜならしたがってところでまたはあるいは一方])([\u3040-\u30ff\u4e00-\u9fff])/g, r: '$1、$2' },
-      // 「?て」「?で」の接続（連用形）+ 名詞/動詞
-      { p: /([ていてでれてってすです])([\u3040-\u30ff\u4e00-\u9fff]{2,})/g, r: '$1、$2' },
-    ];
-
-    // シンプルアプローチ: 文節区切りを句読点で補う
-    // 1) 既存句読点がない場合のみ処理
-    // 2) 文末に句点を付ける
-    // 3) 「?が」「?は」「?を」「?に」「?で」の後に読点の候補を探す
-
-    let s = text;
-
-    // 末尾に句点がなければ付ける
-    const lastChar = s.trimEnd().slice(-1);
-    if (lastChar && !'。．！？!?'.includes(lastChar)) {
-      s = s.trimEnd() + '。';
-    }
-
-    // 長い文節（7字以上）の後の助詞境界に読点
-    // 「?ます、?です、?ました、?でした」の前後
-    s = s.replace(/(ます|です|ました|でした|ません|でしょう)([\u3040-\u30ff\u4e00-\u9fff])/g, '$1、$2');
-
-    // 「?が、?は、?も、?に、?を、?で」が連続するときに読点
-    s = s.replace(/([がはもにをでへとよりから]{1})([\u3040-\u30ff\u4e00-\u9fff]{4,})/g, (m, p1, p2) => {
-      // 既に前に読点や句点があれば挿入しない
-      return p1 + '、' + p2;
-    });
-
-    // 重複読点・句点を除去
-    s = s.replace(/[、。]{2,}/g, m => m[0]);
-    // 句点の直前の読点を除去
-    s = s.replace(/、。/g, '。');
-
-    // 追加した句読点数
-    const origCount = (text.match(/[、。]/g) || []).length;
-    const newCount  = (s.match(/[、。]/g) || []).length;
-    return { result: s, count: Math.max(0, newCount - origCount) };
-  }
-
-  // ─── Claude API 句読点補完 ──────────────────────────
-  async function apiPunctuation(text) {
-    if (!text.trim()) return { result: text, count: 0 };
-
-    const prompt = `以下の日本語テキストは音声認識で生成されたもので、句読点（「、」「。」）が含まれていません。
-自然な日本語として適切な位置に「、」と「。」を挿入してください。
-
-ルール:
-- 元の文字は一切変更・削除しないこと（句読点の挿入のみ）
-- 不自然な位置への挿入は避ける
-- 文末には必ず「。」を付ける
-- 返答は補完後のテキストのみ（説明不要）
-
-入力:
-${text}`;
-
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: 1000,
-        messages: [{ role: 'user', content: prompt }]
-      })
-    });
-
-    if (!res.ok) throw new Error(`API error: ${res.status}`);
-    const data = await res.json();
-    const result = data.content.map(b => b.text || '').join('').trim();
-
-    const origCount = (text.match(/[、。]/g) || []).length;
-    const newCount  = (result.match(/[、。]/g) || []).length;
-    return { result, count: Math.max(0, newCount - origCount) };
-  }
-
-  // ─── 差分ハイライト ──────────────────────────────────
-  // 元テキスト → 補完後テキスト で挿入された句読点をハイライト
-  function buildHighlightHTML(original, completed) {
-    // LCS（最長共通部分列）ベースで差分を取る
-    // シンプルに: completed の各文字について original に存在するか確認
-    const PUNCT = new Set(['、', '。', '，', '．']);
-    let oi = 0; // original のポインタ
-    let html = '';
-
-    for (let ci = 0; ci < completed.length; ci++) {
-      const ch = completed[ci];
-      if (PUNCT.has(ch)) {
-        // originalの同位置にも句読点があるか?
-        if (oi < original.length && original[oi] === ch) {
-          // 元からあった句読点
-          html += esc(ch);
-          oi++;
-        } else {
-          // 追加された句読点
-          html += `<span class="punct-added">${esc(ch)}</span>`;
-          // originalのoiは進めない
-        }
-      } else {
-        html += esc(ch);
-        oi++;
-      }
-    }
-    return html;
-  }
-
-  // ─── 補完処理メイン ─────────────────────────────────
-  async function runPunctuation(text) {
-    if (!text.trim()) return;
-    isProcessing = true;
-    rawText = text;
-
-    // UI: 処理中
-    statusEl.innerHTML = '<span class="spinner"></span>句読点補完中...';
-    statusEl.className = 'status processing';
-    transcriptBox.classList.add('processing');
-    revertBtn.disabled = true;
-
-    const useApi = modeToggle.checked;
-    let result, count, mode;
-
-    try {
-      if (useApi) {
-        ({ result, count } = await apiPunctuation(text));
-        mode = 'api';
-      } else {
-        ({ result, count } = localPunctuation(text));
-        mode = 'local';
-      }
-    } catch (err) {
-      console.error(err);
-      // APIエラー → ローカルにフォールバック
-      ({ result, count } = localPunctuation(text));
-      mode = 'local';
-      statusEl.textContent = 'API失敗→ローカルで補完';
-      statusEl.className = 'status err';
-      setTimeout(() => {
-        statusEl.textContent = finalText ? '完了' : 'マイクをクリックして開始';
-        statusEl.className = 'status';
-      }, 2500);
-    }
-
-    finalText = result;
-    isProcessing = false;
-    transcriptBox.classList.remove('processing');
-
-    // ハイライト表示
-    transcriptText.innerHTML = buildHighlightHTML(rawText, finalText);
-
-    // バッジ
-    punctBadge.textContent = mode === 'api' ? 'Claude API' : 'Local';
-    punctBadge.className   = `punct-badge show ${mode === 'api' ? 'api' : 'local'}`;
-    punctCount.textContent = count > 0 ? `+${count}文字追加` : '変更なし';
-
-    // ボタン更新
-    copyBtn.disabled   = false;
-    clearBtn.disabled  = false;
-    revertBtn.disabled = (rawText === finalText);
-
-    if (!statusEl.classList.contains('err')) {
-      statusEl.textContent = '完了';
-      statusEl.className   = 'status';
-    }
-  }
-
-  // ─── UI描画（録音中） ────────────────────────────────
-  function renderRecording(interim) {
-    const hasFinal   = finalText.length > 0 || rawText.length > 0;
-    const hasInterim = interim.length  > 0;
-    // 録音中は補完なし・生テキストを表示
-    const displayFinal = rawText || finalText;
-    transcriptText.innerHTML =
-      (displayFinal   ? `<span>${esc(displayFinal)}</span>` : '') +
-      (hasInterim ? `<span class="interim">${esc(interim)}</span>` : '') +
-      (!displayFinal && !hasInterim ? '<span class="placeholder">認識中...</span>' : '');
-    copyBtn.disabled  = !displayFinal;
-    clearBtn.disabled = !(displayFinal || hasInterim);
-  }
-
-  function setError(msg) {
-    statusEl.textContent = msg;
-    statusEl.className   = 'status err';
-  }
-
-  function setUI(recording) {
-    micBtn.classList.toggle('active', recording);
-    micWrapper.classList.toggle('recording', recording);
-    visualizer.classList.toggle('recording', recording);
-    transcriptBox.classList.toggle('active', recording);
-    if (!isProcessing) {
-      statusEl.textContent = recording ? '録音中...' : (finalText || rawText ? '完了' : 'マイクをクリックして開始');
-      statusEl.className   = 'status' + (recording ? ' on' : '');
-    }
-  }
-
-  function forceStop() {
-    isRecording = false;
-    if (recognition) { recognition.onend = null; try { recognition.stop(); } catch(e){} }
-    setUI(false);
-    if (!finalText && !rawText) {
-      transcriptText.innerHTML = '<span class="placeholder">認識した文字がここに表示されます...</span>';
-    }
-    copyBtn.disabled  = !(finalText || rawText);
-    clearBtn.disabled = !(finalText || rawText);
-  }
-
-  // ─── SpeechRecognition ──────────────────────────────
-  let sessionRaw = ''; // 今回録音セッションの生テキスト
-
+  // ─── 1発話ごとの認識インスタンスを作る ──────────────
+  // continuous:false にすることで「1フレーズ→確定→onend」の
+  // 単純なサイクルになり、インデックス重複が構造的に起きない
   function buildRecognition() {
     const r = new SpeechRecognition();
     r.lang            = 'ja-JP';
-    r.continuous      = false;
+    r.continuous      = false;   // ★ ここが核心
     r.interimResults  = true;
     r.maxAlternatives = 1;
 
     r.onresult = (e) => {
       let interim = '';
+      // このセッションで得た結果だけを処理（インデックスは毎回0から）
       for (let i = 0; i < e.results.length; i++) {
         if (e.results[i].isFinal) {
-          sessionRaw += e.results[i][0].transcript;
+          finalText += e.results[i][0].transcript;
         } else {
           interim = e.results[i][0].transcript;
         }
       }
-      rawText = sessionRaw;
-      finalText = sessionRaw; // 録音中は生テキストをfinalTextに
-      renderRecording(interim);
+      renderText(interim);
     };
 
     r.onerror = (e) => {
+      // no-speech は静寂時に出るだけ → 次の発話待ちに入るだけなので無視
       if (e.error === 'no-speech') return;
-      if (e.error === 'aborted')   return;
+      if (e.error === 'aborted')   return; // 停止ボタン押下時も無視
       setError({ 'not-allowed': 'マイクを許可してください', 'network': 'ネットワークエラー' }[e.error] || `エラー: ${e.error}`);
       forceStop();
     };
 
+    // 1フレーズ終わったら → まだ録音中なら次のフレーズを開始
     r.onend = () => {
       if (!isRecording) return;
+      // 少し待ってから再開（連続再起動でブラウザが詰まるのを防ぐ）
       setTimeout(() => {
         if (!isRecording) return;
         try {
@@ -505,34 +199,59 @@ ${text}`;
     return r;
   }
 
+  // ─── UI描画 ─────────────────────────────────────────
+  function renderText(interim) {
+    const hasFinal   = finalText.length > 0;
+    const hasInterim = interim.length  > 0;
+    transcriptText.innerHTML =
+      (hasFinal   ? `<span>${esc(finalText)}</span>` : '') +
+      (hasInterim ? `<span class="interim">${esc(interim)}</span>` : '') +
+      (!hasFinal && !hasInterim ? '<span class="placeholder">認識中...</span>' : '');
+    copyBtn.disabled  = !hasFinal;
+    clearBtn.disabled = !(hasFinal || hasInterim);
+  }
+
+  function setError(msg) {
+    statusEl.textContent = msg;
+    statusEl.className   = 'status err';
+  }
+
+  function setUI(recording) {
+    micBtn.classList.toggle('active', recording);
+    micWrapper.classList.toggle('recording', recording);
+    visualizer.classList.toggle('recording', recording);
+    transcriptBox.classList.toggle('active', recording);
+    statusEl.textContent = recording ? '録音中...' : (finalText ? '完了' : 'マイクをクリックして開始');
+    statusEl.className   = 'status' + (recording ? ' on' : '');
+  }
+
+  // ─── 強制停止（エラー時） ────────────────────────────
+  function forceStop() {
+    isRecording = false;
+    if (recognition) { recognition.onend = null; try { recognition.stop(); } catch(e){} }
+    setUI(false);
+    if (!finalText) transcriptText.innerHTML = '<span class="placeholder">認識した文字がここに表示されます...</span>';
+    copyBtn.disabled  = !finalText;
+    clearBtn.disabled = !finalText;
+  }
+
   // ─── ボタン ──────────────────────────────────────────
-  micBtn.addEventListener('click', async () => {
+  micBtn.addEventListener('click', () => {
     if (isRecording) {
       // 停止
       isRecording = false;
       if (recognition) { recognition.onend = null; try { recognition.stop(); } catch(e){} }
       setUI(false);
-
-      const captured = sessionRaw;
-      if (!captured.trim()) {
-        transcriptText.innerHTML = '<span class="placeholder">認識した文字がここに表示されます...</span>';
-        copyBtn.disabled = clearBtn.disabled = true;
-        return;
-      }
-
-      // 句読点補完
-      await runPunctuation(captured);
-
+      if (!finalText) transcriptText.innerHTML = '<span class="placeholder">認識した文字がここに表示されます...</span>';
+      copyBtn.disabled  = !finalText;
+      clearBtn.disabled = !finalText;
     } else {
       // 開始
-      sessionRaw  = '';
-      rawText     = '';
       finalText   = '';
       isRecording = true;
-      punctBadge.className = 'punct-badge';
-      punctCount.textContent = '';
       transcriptText.innerHTML = '<span class="placeholder">認識中...</span>';
-      copyBtn.disabled = clearBtn.disabled = revertBtn.disabled = true;
+      copyBtn.disabled  = true;
+      clearBtn.disabled = true;
       setUI(true);
       recognition = buildRecognition();
       try { recognition.start(); } catch(e) { setError('起動エラー'); isRecording = false; setUI(false); }
@@ -548,22 +267,10 @@ ${text}`;
     });
   });
 
-  revertBtn.addEventListener('click', () => {
-    if (!rawText) return;
-    finalText = rawText;
-    transcriptText.innerHTML = esc(rawText);
-    punctBadge.className = 'punct-badge';
-    punctCount.textContent = '';
-    revertBtn.disabled = true;
-    copyBtn.disabled = !rawText;
-  });
-
   clearBtn.addEventListener('click', () => {
-    finalText = rawText = sessionRaw = '';
+    finalText = '';
     transcriptText.innerHTML = '<span class="placeholder">認識した文字がここに表示されます...</span>';
-    copyBtn.disabled = clearBtn.disabled = revertBtn.disabled = true;
-    punctBadge.className = 'punct-badge';
-    punctCount.textContent = '';
+    copyBtn.disabled = clearBtn.disabled = true;
     if (!isRecording) statusEl.textContent = 'マイクをクリックして開始';
   });
 
