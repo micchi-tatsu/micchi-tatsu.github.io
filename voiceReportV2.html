@@ -659,28 +659,53 @@ function launchSession(){
   rec.interimResults  = true;
   rec.maxAlternatives = 1;
 
-  // ── 無音タイマー ───────────────────────────────────────────
-  // isFinalが来てから PAUSE_MS ミリ秒以上新しい音声が来なければ
-  // rawTextの末尾に句点を追加する（文の区切りを自動検出）
-  const PAUSE_MS   = 1500; // 無音判定時間（ms）
-  let   pauseTimer = null;
+  // ── 無音タイマー＆句点管理 ──────────────────────────────────
+  // ルール:
+  //   1. isFinal確定から PAUSE_MS(30秒)無音 → rawTextに「。」を追加
+  //   2. 「。」追加後 KEEP_MS(60秒)以内に次の発話 → 「。」を削除して続きを追記
+  //   3. 「。」追加後 KEEP_MS(60秒)超えてから発話 → 「。」を残して続きを追記
+  const PAUSE_MS = 30000;
+  const KEEP_MS  = 60000;
+
+  let pauseTimer = null;
+  let dotAddedAt = null; // 「。」を追加した時刻 (Date.now())
 
   function resetPauseTimer(){
     if(pauseTimer) clearTimeout(pauseTimer);
     pauseTimer = setTimeout(()=>{
-      if(rawText && !/[。！？、]$/.test(rawText)){
+      if(rawText && !/[。！？]$/.test(rawText)){
         rawText    += '。';
         globalFinal = rawText;
+        dotAddedAt  = Date.now();
         updateDisplay(rawText, '');
         updateButtons();
       }
+      pauseTimer = null;
     }, PAUSE_MS);
-    activePauseTimer = pauseTimer; // グローバルにも保持
+    activePauseTimer = pauseTimer;
   }
 
   function clearPauseTimer(){
     if(pauseTimer){ clearTimeout(pauseTimer); pauseTimer = null; }
     activePauseTimer = null;
+  }
+
+  function handleNewWord(word){
+    if(dotAddedAt !== null){
+      const elapsed = Date.now() - dotAddedAt;
+      if(elapsed <= KEEP_MS && rawText.endsWith('。')){
+        // 60秒以内 → 句点を削除して続けて追記
+        rawText = rawText.slice(0, -1) + word;
+      } else {
+        // 60秒超え → 句点を残して追記
+        rawText += word;
+      }
+      dotAddedAt = null;
+    } else {
+      rawText += word;
+    }
+    globalFinal = rawText;
+    resetPauseTimer();
   }
   // ─────────────────────────────────────────────────────────────
 
@@ -691,10 +716,10 @@ function launchSession(){
       const word = e.results[i][0].transcript;
       if(!word) continue;
 
-      // 重複チェック: rawTextが既にこのwordで終わっているなら無視
+      // 重複チェック
       if(rawText.endsWith(word)) continue;
 
-      // 部分重複チェック: rawTextの末尾がwordの先頭と重なっている場合
+      // 部分重複チェック
       let toAdd = word;
       for(let len = Math.min(word.length - 1, 20); len > 0; len--){
         if(rawText.endsWith(word.slice(0, len))){
@@ -703,11 +728,7 @@ function launchSession(){
         }
       }
 
-      if(toAdd){
-        rawText    += toAdd;
-        globalFinal = rawText;
-        resetPauseTimer(); // 確定テキストが来たらタイマーをリセット
-      }
+      if(toAdd) handleNewWord(toAdd);
     }
 
     // interim: 末尾の未確定結果のみ（表示専用）
