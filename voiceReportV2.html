@@ -617,8 +617,8 @@ function insertDemo(){
 // ── 音声認識: continuous=false の1発話1確定方式 ──────────
 // 1セッション=1発話。確定テキストは globalFinal に追記。
 
-let globalFinal = '';   // 全セッション通算の確定テキスト（rawText と同期）
-let sessionActive = false; // 現在セッションが start() 済みか
+let globalFinal = '';    // 確定済み全テキスト（rawTextと常に同値）
+let sessionActive = false;
 
 function toggleMain(){
   isRecording ? stopMain() : startMain();
@@ -626,9 +626,9 @@ function toggleMain(){
 
 function startMain(){
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-  if(!SR){ alert('Chrome または Edge をご使用ください（Web Speech API 対応）'); return; }
-  isRecording   = true;
-  globalFinal   = rawText; // 既存テキストがあれば引き継ぐ
+  if(!SR){ alert('Chrome または Edge をご使用ください'); return; }
+  isRecording = true;
+  globalFinal = rawText;
   setRecState(true);
   setStep(2);
   launchSession();
@@ -636,63 +636,86 @@ function startMain(){
 
 function launchSession(){
   if(!isRecording || sessionActive) return;
+  sessionActive = true;
 
   const SR  = window.SpeechRecognition || window.webkitSpeechRecognition;
   const rec = new SR();
-  recognition   = rec;
-  sessionActive = true;
+  recognition = rec;
 
-  rec.lang            = 'ja-JP';
-  rec.continuous      = true;   // リアルタイム表示のためtrueが必須
-  rec.interimResults  = true;
+  rec.lang           = 'ja-JP';
+  rec.continuous     = true;
+  rec.interimResults = true;
   rec.maxAlternatives = 1;
 
-  // 確定済みresultIndexを記録（重複追記防止の核心）
-  const processedIdx = new Set();
-  // このセッション開始時点のglobalFinalを固定（再起動でも変わらない基点）
-  const baseAtStart  = globalFinal;
+  // ── 設計 ──────────────────────────────────────────────────
+  // baseText     : このセッション開始時点のglobalFinal（不変）
+  // sessionText  : このセッションのisFinal確定テキスト（純粋に今回分だけ）
+  // isFinalで来た結果は resultIndex でインデックス管理し、
+  //   「そのインデックスで最後に来た確定テキスト」を採用する（上書き方式）。
+  // → 同じ resultIndex が複数回来ても最新で上書きされるだけで重複しない。
+  // onend では rawText/globalFinal へ1回だけ書き込む。
+  // ──────────────────────────────────────────────────────────
+
+  const baseText = globalFinal;          // セッション開始時の確定済みテキスト
+  const finalMap = new Map();            // resultIndex → 確定テキスト（上書き方式）
+
+  function getSessionText(){
+    // Mapの値を resultIndex 順に並べて結合
+    return [...finalMap.entries()]
+      .sort((a,b) => a[0] - b[0])
+      .map(e => e[1])
+      .join('');
+  }
 
   rec.onresult = (e) => {
-    // ① isFinalのみ processedIdx でガードして globalFinal に追記
+    // isFinal: Mapに上書き保存（同indexが何度来ても最新だけ残る）
     for(let i = e.resultIndex; i < e.results.length; i++){
-      if(e.results[i].isFinal && !processedIdx.has(i)){
-        processedIdx.add(i);
-        globalFinal += e.results[i][0].transcript;
-        rawText      = globalFinal;
+      if(e.results[i].isFinal){
+        finalMap.set(i, e.results[i][0].transcript);
       }
     }
 
-    // ② interimは「末尾の未確定結果」だけ取り出す（表示専用）
+    // interim: 末尾の未確定結果のみ（表示専用・rawTextに混入しない）
     let interim = '';
     const last = e.results[e.results.length - 1];
     if(!last.isFinal) interim = last[0].transcript;
 
-    // ③ 表示更新（確定済み＋認識中）
-    updateDisplay(rawText, interim);
+    // 表示: baseText + 今セッションの確定分 + interim
+    updateDisplay(baseText + getSessionText(), interim);
     updateButtons();
   };
 
   rec.onerror = (e) => {
     if(e.error === 'aborted') return;
     if(e.error === 'no-speech'){
-      // 無音タイムアウト: 再起動（globalFinalは既に最新）
+      // 無音タイムアウト → セッション確定して再起動
+      commitSession();
       sessionActive = false;
-      if(isRecording) setTimeout(launchSession, 120);
+      if(isRecording) setTimeout(launchSession, 100);
       return;
     }
     console.warn('rec error:', e.error);
   };
 
   rec.onend = () => {
+    commitSession();
     sessionActive = false;
-    // onendでは追記しない（onresultで確定済み）
     updateDisplay(rawText, '');
     if(isRecording){
-      setTimeout(launchSession, 120);
+      setTimeout(launchSession, 100);
     } else {
       setRecState(false);
     }
   };
+
+  function commitSession(){
+    const added = getSessionText();
+    if(added){
+      globalFinal = baseText + added;
+      rawText     = globalFinal;
+    }
+    updateButtons();
+  }
 
   try {
     rec.start();
@@ -709,9 +732,7 @@ function stopMain(){
     try { recognition.stop(); } catch(e){}
     recognition = null;
   }
-  // onend が setRecState(false) を呼ぶ
-  // onend が来ない場合の保険
-  setTimeout(()=>{ if(!isRecording) setRecState(false); }, 500);
+  setTimeout(()=>{ if(!isRecording) setRecState(false); }, 600);
 }
 
 function setRecState(on){
