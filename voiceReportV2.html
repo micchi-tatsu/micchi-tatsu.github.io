@@ -854,16 +854,25 @@ async function runAI(){
   const type     = document.getElementById('fType').value;
   const loc      = document.getElementById('fLocation').value || '未指定';
 
+  // 句読点補完: 音声認識は句読点を出力しないため補正する
+  const normalized = addPunctuation(inputText);
+
   const prompt =
-`業務報告書の整形AIです。以下の音声テキストを4項目のJSONに整形してください。
+`あなたは業務報告書の整形AIです。
+以下は音声認識で取得したテキストです。句読点が欠けている場合は補完し、内容を4項目のJSONに整形してください。
 
 報告者:${reporter} / 日付:${date} / 種別:${type} / 場所:${loc}
 
-音声テキスト:
-${inputText}
+【音声テキスト】
+${normalized}
 
-返答はJSONのみ。前後に余計な文字・コードブロックは不要です。
-{"summary":"作業概要を1〜2文","detail":"・箇条書き1\n・箇条書き2","issue":"問題点。なければ空文字","next":"次のアクション。なければ空文字"}`;
+【出力ルール】
+- 返答はJSON1つのみ。前後に文字・コードブロック不要
+- detailは箇条書き（各行を「・」で始める）
+- issueとnextは該当内容がなければ空文字
+- 各フィールドの値は日本語で記述
+
+{"summary":"作業概要を1〜2文で","detail":"・実施内容1\n・実施内容2","issue":"問題点や特記事項。なければ空文字","next":"次回アクションや引き継ぎ。なければ空文字"}`;
 
   try {
     const res = await fetch('https://api.anthropic.com/v1/messages', {
@@ -871,7 +880,7 @@ ${inputText}
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         model: 'claude-sonnet-4-20250514',
-        max_tokens: 1000,
+        max_tokens: 1200,
         messages: [{ role: 'user', content: prompt }]
       })
     });
@@ -881,19 +890,16 @@ ${inputText}
     const data = await res.json();
     const raw  = (data.content || []).map(b => b.text || '').join('').trim();
 
-    // コードブロックや余分な文字を除去してJSONだけ取り出す
-    const jsonStr = raw
-      .replace(/^```(?:json)?/,'').replace(/```$/,'') // バッククォート除去
-      .replace(/^[^{]*/,'')  // { より前の文字を除去
-      .replace(/[^}]*$/,'')  // } より後の文字を除去
-      .trim();
-
-    const parsed = JSON.parse(jsonStr);
+    // JSONブロックを確実に抽出（最初の{から最後の}まで）
+    const start = raw.indexOf('{');
+    const end   = raw.lastIndexOf('}');
+    if(start === -1 || end === -1) throw new Error('JSON not found');
+    const parsed = JSON.parse(raw.slice(start, end + 1));
     fillStruct(parsed);
 
   } catch(err) {
     console.warn('AI error, using demo fill:', err);
-    fillStruct(demoFill(inputText, type, loc));
+    fillStruct(demoFill(normalized, type, loc));
   }
 
   document.getElementById('aiThink').classList.remove('on');
@@ -916,12 +922,39 @@ function clearStruct(){
   });
 }
 
+// 句読点補完: 音声認識テキストに句点・読点を推定挿入する
+function addPunctuation(text){
+  if(!text) return text;
+
+  // 接続助詞「て/で/が/し/けど/ので/から」+ 続く語の境界にスペースが入る場合は読点に
+  let t = text;
+
+  // 「〜て 〜」「〜で 〜」→ 「〜て、〜」
+  t = t.replace(/(て|で|が|し|けど|ので|から|けれど|ながら) +([^\s])/g, '$1、$2');
+
+  // 「〜ました 〜」「〜です 〜」「〜した 〜」→ 文末と判断して句点
+  t = t.replace(/(ました|です|した|ません|ません|ます|だった|でした|ください|します|でしょう) +([^\s])/g, '$1。$2');
+
+  // 「〜た 〜」も文末の可能性が高い
+  t = t.replace(/(った|れた|いた|けた|った|んだ) +([^\s])/g, '$1。$2');
+
+  // 残ったスペースは読点に
+  t = t.replace(/ +/g, '、');
+
+  // 末尾に句点がなければ追加
+  if(t && !t.match(/[。！？]$/)) t += '。';
+
+  return t;
+}
+
 function demoFill(text, type, loc){
-  // 文単位に分割（句点・感嘆符・疑問符で区切る）
+  // 句読点またはスペースで文を分割（句読点なし音声テキストにも対応）
   const sentences = text
-    .replace(/([。！？])/g, '$1|')
+    .replace(/([。！？、,，])/g, '$1|')   // 句読点で分割
     .split('|')
-    .map(s => s.trim())
+    .flatMap(s => s.trim().length > 20     // 長い文はさらにスペースで分割
+      ? s.trim().split(/\s+/)
+      : [s.trim()])
     .filter(s => s.length > 1);
 
   const issueKw  = /問題|不足|切れ|故障|異常|エラー|遅延|不具合|警告|要対応|連絡済|発注/;
