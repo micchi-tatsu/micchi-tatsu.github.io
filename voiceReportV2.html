@@ -706,37 +706,42 @@ function launchSession(){
   rec.interimResults  = true;
   rec.maxAlternatives = 1;
 
-  // processedUpTo: このセッションで処理済みのresultIndex上限。
-  // セッション再起動後は0から始まるが、Chrome が前セッションの
-  // results を引き継いで再送することがあるため addedWords で二重防止。
-  let processedUpTo = 0;
-
   rec.onresult = (e) => {
     for(let i = e.resultIndex; i < e.results.length; i++){
       if(!e.results[i].isFinal) continue;
-      if(i < processedUpTo) continue;   // 再送されたindexはスキップ
-      processedUpTo = i + 1;
 
-      const word = e.results[i][0].transcript;
+      const word = e.results[i][0].transcript.trim();
       if(!word) continue;
 
-      // セッションをまたいだ重複チェック（addedWordsはグローバル）
-      if(addedWords.has(word)) continue;
-      if(rawText.endsWith(word)){ addedWords.add(word); continue; }
+      // ── 重複防止: 3段階チェック ──────────────────────────────
+      // [1] addedWords: 同一transcriptの完全一致（セッションをまたぐ再送も防ぐ）
+      if(addedWords.has(word)){ continue; }
 
-      // 部分重複チェック（rawTextの末尾とwordの先頭が重なる場合）
+      // [2] rawText末尾との完全一致
+      if(rawText.endsWith(word)){
+        addedWords.add(word);
+        continue;
+      }
+
+      // [3] 部分重複: wordの先頭がrawText末尾と重なる場合は差分のみ追記
+      //     例: rawText="...パソコンの" word="パソコンの追加作業"
+      //     → toAdd="追加作業" だけ追記
       let toAdd = word;
-      for(let len = Math.min(word.length - 1, 20); len > 0; len--){
+      for(let len = Math.min(word.length - 1, rawText.length, 30); len > 0; len--){
         if(rawText.endsWith(word.slice(0, len))){
           toAdd = word.slice(len);
           break;
         }
       }
 
-      if(toAdd){
+      // [4] toAdd自体もrawText末尾に既にある場合はスキップ
+      if(!toAdd || rawText.endsWith(toAdd)){
         addedWords.add(word);
-        appendConfirmed(toAdd);
+        continue;
       }
+
+      addedWords.add(word);
+      appendConfirmed(toAdd);
     }
 
     // interim表示
