@@ -639,15 +639,16 @@ function startMain(){
 }
 
 // ── 無音区間タイマー ─────────────────────────────────────────────
-// 無音15秒以上60秒以内 → 「、」追加
-// 無音60秒超え         → 「。」追加
-// 次の発話が来ても追加済みの記号は削除しない
+// 無音 SHORT_MS（1秒）→ 「、」追加
+// 無音 LONG_MS （3秒）→ 「、」を「。」に置き換え
+// 次の発話が来たらタイマーをキャンセル（追加済みの記号は削除しない）
+// セッション再起動（Chrome30秒強制切れ）時はタイマーを引き継ぐ
 const SHORT_MS = 1000;   // 読点タイミング（1秒）
 const LONG_MS  = 3000;   // 句点タイミング（3秒）
 
 function startSilenceTimers(){
   cancelSilenceTimers();
-  // 15秒後: 読点
+  // SHORT_MS後: 読点
   activePauseTimer = setTimeout(()=>{
     activePauseTimer = null;
     if(rawText && !/[。！？、]$/.test(rawText)){
@@ -656,7 +657,7 @@ function startSilenceTimers(){
       updateDisplay(rawText, '');
       updateButtons();
     }
-    // 残り45秒後（合計60秒）: 読点→句点に置き換え
+    // 残り（LONG_MS - SHORT_MS）後: 読点→句点に置き換え
     activeKutenTimer = setTimeout(()=>{
       activeKutenTimer = null;
       if(rawText && rawText.endsWith('、')){
@@ -740,6 +741,8 @@ function launchSession(){
   };
 
   rec.onerror = (e) => {
+    // aborted: stopMain()による意図的停止 → タイマーはstopMain()側でキャンセル済み
+    // no-speech: 無音タイムアウト → タイマーは引き継ぐ（onendで再起動される）
     if(e.error === 'aborted' || e.error === 'no-speech') return;
     console.warn('rec error:', e.error);
   };
@@ -748,8 +751,13 @@ function launchSession(){
     sessionActive = false;
     updateDisplay(rawText, '');
     if(isRecording){
+      // Chrome の強制セッション終了（約30秒）による再起動。
+      // タイマーは cancelSilenceTimers() せずに引き継ぐ。
+      // ただし interim 表示が消えた直後にタイマーが残ったまま
+      // 再起動するのは正常なので何もしない。
       setTimeout(launchSession, 100);
     } else {
+      // 手動停止: stopMain() 側で cancelSilenceTimers() 済み
       setRecState(false);
     }
   };
