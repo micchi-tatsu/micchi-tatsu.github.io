@@ -642,8 +642,8 @@ function startMain(){
 // 無音15秒以上60秒以内 → 「、」追加
 // 無音60秒超え         → 「。」追加
 // 次の発話が来ても追加済みの記号は削除しない
-const SHORT_MS = 15000;  // 読点タイミング
-const LONG_MS  = 60000;  // 句点タイミング
+const SHORT_MS = 3000;   // 読点タイミング（3秒）
+const LONG_MS  = 8000;   // 句点タイミング（8秒）
 
 function startSilenceTimers(){
   cancelSilenceTimers();
