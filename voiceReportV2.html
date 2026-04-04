@@ -444,9 +444,8 @@ textarea.fi{resize:vertical;min-height:72px;line-height:1.65;}
           </div>
           <p class="voice-hint" id="vcHint">タップして録音開始<br><small style="color:var(--t3)">作業内容を自由に話してください</small></p>
         </div>
-        <div style="padding:0 14px 4px;text-align:center;font-size:11px;color:var(--t3);">
-          ⚠️ claude.aiのプレビュー内ではマイクは使えません。<br>ローカルサーバーで開くか、テキスト入力モードをお使いください。
-        </div>
+        <!-- 文字起こし表示エリア（音声モード専用） -->
+        <div class="raw-box empty" id="rawBox" style="margin-bottom:4px;">音声の文字起こしがここに表示されます...</div>
       </div>
 
       <!-- テキストモード -->
@@ -459,8 +458,6 @@ textarea.fi{resize:vertical;min-height:72px;line-height:1.65;}
           oninput="onTextInput(this.value)"
           style="min-height:130px;line-height:1.7;"></textarea>
       </div>
-
-      <div class="raw-box empty" id="rawBox" style="display:none;">音声の文字起こしがここに表示されます...</div>
 
       <div class="raw-actions" style="margin-top:4px;">
         <button class="raw-btn btn-clear" id="btnClear" onclick="clearRaw()" disabled>✕ クリア</button>
@@ -588,7 +585,7 @@ function setMode(m){
   const isText = m === 'text';
   document.getElementById('voiceMode').style.display = isText ? 'none' : '';
   document.getElementById('textMode').style.display = isText ? '' : 'none';
-  document.getElementById('rawBox').style.display = isText ? 'none' : '';
+  // rawBox は voiceMode 内に移動したため個別制御不要
   document.getElementById('modeVoiceBtn').style.background = isText ? 'var(--s3)' : 'var(--accent)';
   document.getElementById('modeVoiceBtn').style.color = isText ? 'var(--t2)' : '#fff';
   document.getElementById('modeTextBtn').style.background = isText ? 'var(--accent)' : 'var(--s3)';
@@ -731,17 +728,23 @@ function setRecState(on){
 function updateDisplay(confirmed, interim){
   const b = document.getElementById('rawBox');
   if(!b) return;
+  // voiceModeが非表示なら何もしない
+  const vm = document.getElementById('voiceMode');
+  if(vm && vm.style.display === 'none') return;
+
   if(!confirmed && !interim){
     b.innerHTML = '<span style="color:var(--t3);font-style:italic">音声の文字起こしがここに表示されます...</span>';
     b.className = 'raw-box empty';
     return;
   }
   b.className = 'raw-box';
-  // interimを薄いグレーで表示して確定済みと視覚的に区別
+  // 確定済みテキスト（白） + interim（グレー、読み取り中を視覚表現）
   const interimHtml = interim
-    ? `<span style="color:var(--t3)">${escHtml(interim)}</span>`
+    ? `<span style="color:var(--t2);font-style:italic">${escHtml(interim)}</span>`
     : '';
   b.innerHTML = escHtml(confirmed) + interimHtml;
+  // 常に末尾にスクロール
+  b.scrollTop = b.scrollHeight;
   updateButtons();
 }
 
