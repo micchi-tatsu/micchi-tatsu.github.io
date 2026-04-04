@@ -760,11 +760,12 @@ function updateDisplay(confirmed, interim){
     return;
   }
   b.className = 'raw-box';
-  // 確定済みテキスト（白） + interim（グレー、読み取り中を視覚表現）
+  // 確定済みテキストに句読点を補完して表示（rawTextは変更しない・表示のみ）
+  const displayText = addPunctuation(confirmed);
   const interimHtml = interim
     ? `<span style="color:var(--t2);font-style:italic">${escHtml(interim)}</span>`
     : '';
-  b.innerHTML = escHtml(confirmed) + interimHtml;
+  b.innerHTML = escHtml(displayText) + interimHtml;
   // 常に末尾にスクロール
   b.scrollTop = b.scrollHeight;
   updateButtons();
@@ -938,24 +939,30 @@ function clearStruct(){
 // 句読点補完: 音声認識テキストに句点・読点を推定挿入する
 function addPunctuation(text){
   if(!text) return text;
-
-  // 接続助詞「て/で/が/し/けど/ので/から」+ 続く語の境界にスペースが入る場合は読点に
   let t = text;
 
-  // 「〜て 〜」「〜で 〜」→ 「〜て、〜」
+  // ── スペースありパターン（スペースが境界のヒントになる場合）──
+  // 接続助詞 + スペース → 読点
   t = t.replace(/(て|で|が|し|けど|ので|から|けれど|ながら) +([^\s])/g, '$1、$2');
-
-  // 「〜ました 〜」「〜です 〜」「〜した 〜」→ 文末と判断して句点
-  t = t.replace(/(ました|です|した|ません|ません|ます|だった|でした|ください|します|でしょう) +([^\s])/g, '$1。$2');
-
-  // 「〜た 〜」も文末の可能性が高い
-  t = t.replace(/(った|れた|いた|けた|った|んだ) +([^\s])/g, '$1。$2');
-
-  // 残ったスペースは読点に
+  // 文末表現 + スペース → 句点
+  t = t.replace(/(ました|ません|でした|ください|でしょう|します|です|した|ます|だった) +([^\s])/g, '$1。$2');
+  t = t.replace(/(った|れた|いた|けた|んだ|ある|ない|よい|いい) +([^\s])/g, '$1。$2');
+  // 残ったスペース → 読点
   t = t.replace(/ +/g, '、');
 
+  // ── スペースなしパターン（ベタテキスト対応）──────────────────
+  // 文末表現の直後に別の文が続く場合に句点を挿入
+  // 例:「作業を行った今後は」→「作業を行った。今後は」
+  const bunkmatsu = /(ました|ません|でした|ください|でしょう|した|です|ます|だった|った|れた|いた|けた|んだ)(今|明日|次|その後|また|さらに|なお|しかし|ただし|以上|以降|午前|午後|本日|当日|先ほど|引き続き)/g;
+  t = t.replace(bunkmatsu, '$1。$2');
+
+  // 接続助詞の直後に名詞・動詞が来る場合に読点を挿入
+  // 例:「確認して問題なし」→「確認して、問題なし」
+  const setsuzoку = /(して|られて|れて|いて|きて|んで|んで)(\S)/g;
+  t = t.replace(setsuzoку, '$1、$2');
+
   // 末尾に句点がなければ追加
-  if(t && !t.match(/[。！？]$/)) t += '。';
+  if(t && !/[。！？、]$/.test(t)) t += '。';
 
   return t;
 }
