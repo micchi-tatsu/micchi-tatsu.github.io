@@ -619,8 +619,9 @@ function insertDemo(){
 
 let globalFinal      = '';
 let sessionActive    = false;
-let activePauseTimer = null;
-let dotAddedAt       = null;  // 「。」追加時刻（グローバル管理）
+let activePauseTimer = null;  // 読点タイマーID
+let activeKutenTimer = null;  // 句点タイマーID
+let lastFinalAt      = null;  // 最後にisFinalを受け取った時刻
 
 function toggleMain(){
   isRecording ? stopMain() : startMain();
@@ -629,61 +630,64 @@ function toggleMain(){
 function startMain(){
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   if(!SR){ alert('Chrome または Edge をご使用ください'); return; }
-  isRecording  = true;
-  globalFinal  = rawText;
-  dotAddedAt   = null;
+  isRecording = true;
+  globalFinal = rawText;
+  lastFinalAt = null;
   setRecState(true);
   setStep(2);
   launchSession();
 }
 
-// ── 句点タイマー（グローバル関数として定義） ─────────────────────
-// PAUSE_MS : 無音→句点追加までの時間
-// KEEP_MS  : 句点追加後、削除できる猶予時間
-//   ・猶予内(≦KEEP_MS)に発話 → 句点を削除して続きを追記
-//   ・猶予超え(>KEEP_MS)に発話 → 句点を残して続きを追記
-const PAUSE_MS = 30000;
-const KEEP_MS  = 60000;
+// ── 無音区間タイマー ─────────────────────────────────────────────
+// 無音15秒以上60秒以内 → 「、」追加
+// 無音60秒超え         → 「。」追加
+// 次の発話が来ても追加済みの記号は削除しない
+const SHORT_MS = 15000;  // 読点タイミング
+const LONG_MS  = 60000;  // 句点タイミング
 
-function startPauseTimer(){
-  if(activePauseTimer) clearTimeout(activePauseTimer);
+function startSilenceTimers(){
+  cancelSilenceTimers();
+  // 15秒後: 読点
   activePauseTimer = setTimeout(()=>{
     activePauseTimer = null;
-    if(rawText && !/[。！？]$/.test(rawText)){
-      rawText    += '。';
+    if(rawText && !/[。！？、]$/.test(rawText)){
+      rawText    += '、';
       globalFinal = rawText;
-      dotAddedAt  = Date.now();
       updateDisplay(rawText, '');
       updateButtons();
     }
-  }, PAUSE_MS);
+    // 残り45秒後（合計60秒）: 読点→句点に置き換え
+    activeKutenTimer = setTimeout(()=>{
+      activeKutenTimer = null;
+      if(rawText && rawText.endsWith('、')){
+        // 読点を句点に置き換え
+        rawText    = rawText.slice(0, -1) + '。';
+        globalFinal = rawText;
+        updateDisplay(rawText, '');
+        updateButtons();
+      } else if(rawText && !/[。！？]$/.test(rawText)){
+        // 読点がなかった場合でも句点を追加
+        rawText    += '。';
+        globalFinal = rawText;
+        updateDisplay(rawText, '');
+        updateButtons();
+      }
+    }, LONG_MS - SHORT_MS);
+  }, SHORT_MS);
 }
 
-function cancelPauseTimer(){
+function cancelSilenceTimers(){
   if(activePauseTimer){ clearTimeout(activePauseTimer); activePauseTimer = null; }
+  if(activeKutenTimer){ clearTimeout(activeKutenTimer); activeKutenTimer = null; }
 }
+// ─────────────────────────────────────────────────────────────────
 
-// 新しい確定テキストをrawTextに追記する
-// 句点の削除判定もここで行う
+// 確定テキストをrawTextに追記する（削除ロジックなし）
 function appendConfirmed(word){
   if(!word) return;
-
-  if(dotAddedAt !== null && rawText.endsWith('。')){
-    const elapsed = Date.now() - dotAddedAt;
-    if(elapsed <= KEEP_MS){
-      // 猶予内 → 句点を削除して続けて追記（同じ文として扱う）
-      rawText = rawText.slice(0, -1) + word;
-    } else {
-      // 猶予超え → 句点を残して追記（別の文として扱う）
-      rawText += word;
-    }
-    dotAddedAt = null;
-  } else {
-    rawText += word;
-  }
+  rawText    += word;
   globalFinal = rawText;
-  // 追記後にタイマーをリセット
-  startPauseTimer();
+  startSilenceTimers(); // タイマーをリセット
 }
 
 function launchSession(){
@@ -699,8 +703,6 @@ function launchSession(){
   rec.interimResults  = true;
   rec.maxAlternatives = 1;
 
-  // このセッションで追記済みのword文字列セット（完全一致重複防止）
-  // セッションをまたいだ重複は rawText.endsWith で防ぐ
   const addedWords = new Set();
 
   rec.onresult = (e) => {
@@ -710,16 +712,10 @@ function launchSession(){
       const word = e.results[i][0].transcript;
       if(!word) continue;
 
-      // このセッションで既に同じwordを追記済みならスキップ
       if(addedWords.has(word)) continue;
+      if(rawText.endsWith(word)){ addedWords.add(word); continue; }
 
-      // rawTextが既にこのwordで終わっているなら重複
-      if(rawText.endsWith(word)){
-        addedWords.add(word);
-        continue;
-      }
-
-      // rawTextの末尾がwordの先頭と部分重複している場合
+      // 部分重複チェック
       let toAdd = word;
       for(let len = Math.min(word.length - 1, 20); len > 0; len--){
         if(rawText.endsWith(word.slice(0, len))){
@@ -734,7 +730,7 @@ function launchSession(){
       }
     }
 
-    // interim: 末尾の未確定結果のみ（表示専用）
+    // interim表示
     let interim = '';
     const last = e.results[e.results.length - 1];
     if(!last.isFinal) interim = last[0].transcript;
@@ -769,7 +765,7 @@ function launchSession(){
 
 function stopMain(){
   isRecording = false;
-  cancelPauseTimer();
+  cancelSilenceTimers();
   if(recognition){
     try { recognition.stop(); } catch(e){}
     recognition = null;
@@ -842,8 +838,6 @@ function updateButtons(){
 function clearRaw(){
   rawText     = '';
   globalFinal = '';
-  dotAddedAt  = null;
-  cancelPauseTimer();
   aiDone = false;
   setRaw('');
   if(document.getElementById('textInput'))
@@ -1086,8 +1080,6 @@ function saveReport(){
 function resetForm(){
   rawText     = '';
   globalFinal = '';
-  dotAddedAt  = null;
-  cancelPauseTimer();
   aiDone = false;
   setRaw('');
   clearStruct();
