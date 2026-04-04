@@ -617,8 +617,13 @@ function insertDemo(){
 // ── 音声認識: continuous=false の1発話1確定方式 ──────────
 // 1セッション=1発話。確定テキストは globalFinal に追記。
 
-let globalFinal = '';     // 確定済み全テキスト（rawTextと常に同値）
+let globalFinal   = '';   // 確定済み全テキスト（rawTextと常に同値）
 let sessionActive = false;
+// グローバルなresultIndexカウンタ。
+// Chrome/Androidはセッション再起動時にresultIndexを0からリセットするため、
+// セッション絶対インデックス（globalOffset + ローカルindex）で一意性を管理する。
+let globalOffset  = 0;    // セッション再起動のたびに加算するオフセット
+let globalAdded   = new Set(); // 追記済みの絶対インデックス（セッションをまたいで保持）
 
 function toggleMain(){
   isRecording ? stopMain() : startMain();
@@ -627,22 +632,14 @@ function toggleMain(){
 function startMain(){
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   if(!SR){ alert('Chrome または Edge をご使用ください'); return; }
-  isRecording = true;
-  globalFinal = rawText;
+  isRecording   = true;
+  globalFinal   = rawText;
+  globalOffset  = 0;
+  globalAdded   = new Set();
   setRecState(true);
   setStep(2);
   launchSession();
 }
-
-// ── 設計方針 ────────────────────────────────────────────────────
-// isFinalが来たら「その場で」rawText/globalFinalに追記する。
-// onend/commitでは追記しない → 二重追記の根本的な排除。
-//
-// 重複防止: finalMap (Map<index, text>) で管理。
-//   同じindexが何度来ても上書きされるだけ。
-//   ただし「既に追記済みのindex」はaddedSet(Set)で記録し、
-//   rawTextへの追記は未追記のindexのみ行う。
-// ────────────────────────────────────────────────────────────────
 
 function launchSession(){
   if(!isRecording || sessionActive) return;
@@ -657,18 +654,25 @@ function launchSession(){
   rec.interimResults  = true;
   rec.maxAlternatives = 1;
 
-  // rawTextに追記済みのresultIndex（このセッション内で一度でも確定したindex）
-  const addedSet = new Set();
+  // このセッション内で見たresultIndexの最大値を記録
+  // セッション終了時にglobalOffsetを更新するために使う
+  let localMaxIdx = -1;
 
   rec.onresult = (e) => {
     for(let i = e.resultIndex; i < e.results.length; i++){
-      if(e.results[i].isFinal && !addedSet.has(i)){
-        addedSet.add(i);
-        const word = e.results[i][0].transcript;
-        rawText     += word;
-        globalFinal += word;
+      if(i > localMaxIdx) localMaxIdx = i;
+
+      if(e.results[i].isFinal){
+        const absIdx = globalOffset + i; // セッションをまたいだ絶対インデックス
+        if(!globalAdded.has(absIdx)){
+          globalAdded.add(absIdx);
+          const word  = e.results[i][0].transcript;
+          rawText    += word;
+          globalFinal = rawText;
+        }
       }
     }
+
     // interim: 末尾の未確定結果のみ（表示専用）
     let interim = '';
     const last = e.results[e.results.length - 1];
@@ -684,7 +688,8 @@ function launchSession(){
   };
 
   rec.onend = () => {
-    // ここでは rawText/globalFinal に触らない（onresultで追記済み）
+    // セッション終了時にオフセットを次セッション分だけ進める
+    globalOffset += (localMaxIdx + 1);
     sessionActive = false;
     updateDisplay(rawText, '');
     if(isRecording){
