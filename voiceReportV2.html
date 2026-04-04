@@ -617,81 +617,76 @@ function insertDemo(){
 //   セッション再起動なし: onendでisRecordingがtrueなら再起動するが
 //                         その際confirmedTextを引き継ぐ
 
-let confirmedText = '';  // isFinal確定済みテキスト（唯一の真の蓄積場所）
+// ── 音声認識: continuous=false の1発話1確定方式 ──────────
+// 1セッション=1発話。確定テキストは globalFinal に追記。
+
+let globalFinal = '';   // 全セッション通算の確定テキスト（rawText と同期）
+let sessionActive = false; // 現在セッションが start() 済みか
 
 function toggleMain(){
   isRecording ? stopMain() : startMain();
 }
 
 function startMain(){
-  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
-  if(!SR){alert('Chrome または Edge をご使用ください（Web Speech API 対応）');return;}
-
-  isRecording = true;
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if(!SR){ alert('Chrome または Edge をご使用ください（Web Speech API 対応）'); return; }
+  isRecording   = true;
+  globalFinal   = rawText; // 既存テキストがあれば引き継ぐ
   setRecState(true);
   setStep(2);
-  launchRecognition();
+  launchSession();
 }
 
-function launchRecognition(){
-  if(!isRecording) return;
+function launchSession(){
+  if(!isRecording || sessionActive) return;
 
-  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  const SR  = window.SpeechRecognition || window.webkitSpeechRecognition;
   const rec = new SR();
-  recognition = rec;
-  rec.lang = 'ja-JP';
-  rec.continuous = true;
-  rec.interimResults = true;
-  rec.maxAlternatives = 1;
+  recognition   = rec;
+  sessionActive = true;
 
-  // セッション開始時点のベーステキストを固定（再起動しても変わらない）
-  const baseText = rawText;
+  rec.lang             = 'ja-JP';
+  rec.continuous       = false; // 1発話で自動終了 → 重複が起きない
+  rec.interimResults   = true;
+  rec.maxAlternatives  = 1;
 
-  // このセッション内で確定したテキスト（isFinalのみ蓄積）
-  let sessionFinal = '';
-  // onendが既に確定処理を済ませたか（二重確定防止）
-  let committed = false;
-
-  function commit(){
-    if(committed) return;
-    committed = true;
-    rawText = baseText + sessionFinal;
-    confirmedText = rawText;
-  }
+  // このセッションで得た確定テキスト
+  let sesText  = '';
+  // このセッションで既にonresultが来たか（onend重複防止フラグ）
+  let gotResult = false;
 
   rec.onresult = (e) => {
-    // resultIndexから処理することで前回分の再処理を防ぐ
+    gotResult = true;
+    sesText = '';
+    // isFinalの結果だけを蓄積（resultIndexから走査）
     for(let i = e.resultIndex; i < e.results.length; i++){
-      if(e.results[i].isFinal){
-        sessionFinal += e.results[i][0].transcript;
-      }
+      if(e.results[i].isFinal) sesText += e.results[i][0].transcript;
     }
-
-    // interimは最末尾の未確定結果だけ
+    // interimは末尾の未確定結果だけ表示用に取る
     let interim = '';
     const last = e.results[e.results.length - 1];
     if(!last.isFinal) interim = last[0].transcript;
 
-    // 表示更新（rawTextは変えない。確定はonendで行う）
-    updateDisplay(baseText + sessionFinal, interim);
+    updateDisplay(globalFinal + sesText, interim);
   };
 
   rec.onerror = (e) => {
-    if(e.error === 'aborted') return;
-    if(e.error === 'no-speech'){
-      // 無音タイムアウト: commitしてから再起動
-      commit();
-      if(isRecording) setTimeout(()=>launchRecognition(), 150);
-      return;
-    }
-    console.warn('SpeechRecognition error:', e.error);
+    if(e.error === 'aborted' || e.error === 'no-speech') return; // 無視して onend へ
+    console.warn('rec error:', e.error);
   };
 
   rec.onend = () => {
-    commit(); // 必ずcommitしてからonendを終える
+    sessionActive = false;
+    // 確定テキストを globalFinal に一度だけ追記
+    if(sesText) {
+      globalFinal += sesText;
+      rawText      = globalFinal;
+      updateDisplay(rawText, '');
+      updateButtons();
+    }
+    // 録音継続中なら次のセッションを起動
     if(isRecording){
-      // 録音継続中: セッション再起動
-      setTimeout(()=>launchRecognition(), 150);
+      setTimeout(launchSession, 120);
     } else {
       updateDisplay(rawText, '');
       setRecState(false);
@@ -701,17 +696,21 @@ function launchRecognition(){
   try {
     rec.start();
   } catch(err){
-    console.warn('recognition.start() error:', err);
+    sessionActive = false;
+    console.warn('rec.start() error:', err);
+    if(isRecording) setTimeout(launchSession, 300);
   }
 }
 
 function stopMain(){
   isRecording = false;
   if(recognition){
-    recognition.stop();
+    try { recognition.stop(); } catch(e){}
     recognition = null;
   }
-  // onendで setRecState(false) が呼ばれる
+  // onend が setRecState(false) を呼ぶ
+  // onend が来ない場合の保険
+  setTimeout(()=>{ if(!isRecording) setRecState(false); }, 500);
 }
 
 function setRecState(on){
@@ -756,14 +755,13 @@ function escHtml(s){
 }
 
 function setRaw(t){
-  // クリア操作用
-  rawText = t;
-  confirmedText = t;
+  rawText     = t;
+  globalFinal = t;
   updateDisplay(t, '');
 }
 
 function updateButtons(){
-  const hasText = !!(rawText || confirmedText);
+  const hasText = !!rawText;
   const btnAI = document.getElementById('btnAI');
   const btnClear = document.getElementById('btnClear');
   if(btnAI) btnAI.disabled = !hasText;
@@ -771,8 +769,8 @@ function updateButtons(){
 }
 
 function clearRaw(){
-  rawText = '';
-  confirmedText = '';
+  rawText     = '';
+  globalFinal = '';
   aiDone = false;
   setRaw('');
   if(document.getElementById('textInput'))
@@ -828,10 +826,10 @@ function micField(fieldId,btnId){
 
 // ─── AI ──────────────────────────────────────────────────
 async function runAI(){
-  // 音声モードはconfirmedText、テキストモードはtextInput.valueを使う
+  // 音声モードはglobalFinal、テキストモードはtextInput.valueを使う
   const inputText = currentMode === 'text'
     ? (document.getElementById('textInput')?.value || '').trim()
-    : confirmedText.trim();
+    : (globalFinal || rawText).trim();
 
   if(!inputText){ showToast('⚠️ 入力内容がありません'); return; }
 
@@ -974,8 +972,8 @@ function saveReport(){
 }
 
 function resetForm(){
-  rawText = '';
-  confirmedText = '';
+  rawText     = '';
+  globalFinal = '';
   aiDone = false;
   setRaw('');
   clearStruct();
