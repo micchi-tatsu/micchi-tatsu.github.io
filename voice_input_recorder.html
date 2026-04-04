@@ -3,7 +3,383 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>音声入力</title><!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>音声入力</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@300;400;700&family=Space+Mono:wght@400;700&display=swap');
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #0d0f14; --surface: #161921; --border: #252a35;
+    --accent: #00e5a0; --accent2: #005f42; --danger: #ff4560;
+    --text: #e8eaf0; --muted: #6b7280;
+    --highlight-bg: rgba(0,229,160,0.18);
+    --highlight-color: #00e5a0;
+  }
+  body {
+    background: var(--bg); color: var(--text);
+    font-family: 'Zen Kaku Gothic New', sans-serif;
+    min-height: 100vh; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; padding: 2rem; position: relative;
+  }
+  body::before {
+    content: ''; position: fixed; inset: 0;
+    background-image: linear-gradient(rgba(0,229,160,0.03) 1px, transparent 1px),
+                      linear-gradient(90deg, rgba(0,229,160,0.03) 1px, transparent 1px);
+    background-size: 40px 40px; pointer-events: none;
+  }
+  .container { width: 100%; max-width: 640px; display: flex; flex-direction: column; align-items: center; gap: 2.5rem; position: relative; z-index: 1; }
+  .header { text-align: center; }
+  .header h1 { font-family: 'Space Mono', monospace; font-size: 1.1rem; font-weight: 400; color: var(--accent); letter-spacing: 0.3em; text-transform: uppercase; margin-bottom: 0.4rem; }
+  .header p { font-size: 0.85rem; color: var(--muted); }
+
+  /* Mic */
+  .mic-area { display: flex; flex-direction: column; align-items: center; gap: 1.5rem; }
+  .mic-wrapper { position: relative; width: 140px; height: 140px; display: flex; align-items: center; justify-content: center; }
+  .ring { position: absolute; border-radius: 50%; border: 1.5px solid var(--accent); opacity: 0; transform: scale(0.85); }
+  .ring-1 { width: 100%; height: 100%; }
+  .ring-2 { width: 130%; height: 130%; }
+  .ring-3 { width: 160%; height: 160%; }
+  .recording .ring-1 { animation: pulse 2s ease-out infinite; }
+  .recording .ring-2 { animation: pulse 2s ease-out 0.4s infinite; }
+  .recording .ring-3 { animation: pulse 2s ease-out 0.8s infinite; }
+  @keyframes pulse { 0% { opacity: 0.7; transform: scale(0.85); } 100% { opacity: 0; transform: scale(1.2); } }
+  .mic-btn {
+    width: 100px; height: 100px; border-radius: 50%; border: 2px solid var(--accent);
+    background: var(--surface); cursor: pointer; display: flex; align-items: center; justify-content: center;
+    transition: all 0.25s cubic-bezier(0.34,1.56,0.64,1); position: relative; z-index: 1; outline: none;
+  }
+  .mic-btn:hover { background: var(--accent2); transform: scale(1.06); box-shadow: 0 0 30px rgba(0,229,160,0.2); }
+  .mic-btn.active { background: var(--accent); border-color: var(--accent); box-shadow: 0 0 40px rgba(0,229,160,0.4); transform: scale(1.08); }
+  .mic-btn.active svg { color: #0d0f14; }
+  .mic-btn svg { width: 38px; height: 38px; color: var(--accent); transition: color 0.2s; }
+
+  /* Visualizer */
+  .visualizer { width: 200px; height: 48px; display: flex; align-items: center; justify-content: center; gap: 3px; }
+  .bar { width: 4px; border-radius: 2px; background: var(--accent); opacity: 0.3; height: 4px; }
+  .recording .bar { opacity: 1; animation: wave 0.8s ease-in-out infinite alternate; }
+  .bar:nth-child(1){animation-delay:0s}.bar:nth-child(2){animation-delay:.07s}
+  .bar:nth-child(3){animation-delay:.14s}.bar:nth-child(4){animation-delay:.21s}
+  .bar:nth-child(5){animation-delay:.28s}.bar:nth-child(6){animation-delay:.35s}
+  .bar:nth-child(7){animation-delay:.28s}.bar:nth-child(8){animation-delay:.21s}
+  .bar:nth-child(9){animation-delay:.14s}.bar:nth-child(10){animation-delay:.07s}
+  .bar:nth-child(11){animation-delay:0s}.bar:nth-child(12){animation-delay:.07s}
+  .bar:nth-child(13){animation-delay:.14s}
+  @keyframes wave { 0% { height: 4px; } 100% { height: 36px; } }
+
+  .status { font-family: 'Space Mono', monospace; font-size: 0.75rem; letter-spacing: 0.2em; color: var(--muted); text-transform: uppercase; min-height: 1.2em; }
+  .status.on  { color: var(--accent); }
+  .status.err { color: var(--danger); }
+
+  /* Transcript */
+  .transcript-box { width: 100%; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 1.2rem 1.4rem; min-height: 120px; transition: border-color 0.3s; }
+  .transcript-box.active { border-color: var(--accent2); }
+  .transcript-label { font-family: 'Space Mono', monospace; font-size: 0.65rem; letter-spacing: 0.25em; color: var(--muted); text-transform: uppercase; margin-bottom: 0.7rem; display: flex; align-items: center; gap: 0.5rem; }
+  .transcript-label::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--muted); transition: background 0.3s; }
+  .transcript-box.active .transcript-label::before { background: var(--accent); box-shadow: 0 0 6px var(--accent); animation: blink 1s step-end infinite; }
+  @keyframes blink { 50% { opacity: 0; } }
+  #transcript-text { font-size: 1rem; line-height: 1.8; color: var(--text); min-height: 3em; word-break: break-all; }
+  .interim { color: var(--muted); font-style: italic; }
+  .placeholder { color: var(--muted); font-size: 0.9rem; }
+
+  /* Highlighted punctuation added by AI */
+  .punct-added {
+    background: var(--highlight-bg);
+    color: var(--highlight-color);
+    border-radius: 2px;
+    padding: 0 1px;
+    font-weight: 700;
+  }
+
+  /* Punctuation info */
+  .punct-info {
+    width: 100%; display: flex; align-items: center; gap: 0.5rem;
+    min-height: 1.4rem;
+  }
+  .punct-badge {
+    font-family: 'Space Mono', monospace; font-size: 0.62rem;
+    letter-spacing: 0.1em; padding: 0.2rem 0.6rem;
+    border-radius: 4px; text-transform: uppercase;
+    opacity: 0; transition: opacity 0.3s;
+  }
+  .punct-badge.show { opacity: 1; }
+  .punct-badge.local { background: rgba(107,114,128,0.15); color: var(--muted); border: 1px solid var(--border); }
+  .punct-badge.none  { background: rgba(255,69,96,0.1); color: var(--danger); border: 1px solid rgba(255,69,96,0.3); }
+  .punct-count { font-family: 'Space Mono', monospace; font-size: 0.62rem; color: var(--muted); }
+
+  .actions { display: flex; gap: 0.75rem; width: 100%; }
+  .btn { flex: 1; padding: 0.65rem 1rem; border-radius: 8px; border: 1px solid var(--border); background: transparent; color: var(--muted); font-family: 'Space Mono', monospace; font-size: 0.72rem; letter-spacing: 0.1em; cursor: pointer; transition: all 0.2s; text-transform: uppercase; }
+  .btn:hover { border-color: var(--accent); color: var(--accent); background: rgba(0,229,160,0.05); }
+  .btn:disabled { opacity: 0.3; cursor: not-allowed; }
+  .btn.revert-btn { flex: 0.7; }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <h1>Voice Input</h1>
+    <p>ボタンを押して話しかけてください</p>
+  </div>
+
+  <div class="mic-area">
+    <div class="mic-wrapper" id="micWrapper">
+      <div class="ring ring-1"></div>
+      <div class="ring ring-2"></div>
+      <div class="ring ring-3"></div>
+      <button class="mic-btn" id="micBtn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="9" y="2" width="6" height="11" rx="3"/>
+          <path d="M5 10a7 7 0 0 0 14 0"/>
+          <line x1="12" y1="19" x2="12" y2="22"/>
+          <line x1="8" y1="22" x2="16" y2="22"/>
+        </svg>
+      </button>
+    </div>
+    <div class="visualizer" id="visualizer">
+      <div class="bar"></div><div class="bar"></div><div class="bar"></div>
+      <div class="bar"></div><div class="bar"></div><div class="bar"></div>
+      <div class="bar"></div><div class="bar"></div><div class="bar"></div>
+      <div class="bar"></div><div class="bar"></div><div class="bar"></div>
+      <div class="bar"></div>
+    </div>
+    <div class="status" id="status">マイクをクリックして開始</div>
+  </div>
+
+  <div class="transcript-box" id="transcriptBox">
+    <div class="transcript-label">Transcript</div>
+    <div id="transcript-text"><span class="placeholder">認識した文字がここに表示されます...</span></div>
+  </div>
+
+  <div class="punct-info">
+    <span class="punct-badge" id="punctBadge"></span>
+    <span class="punct-count" id="punctCount"></span>
+  </div>
+
+  <div class="actions">
+    <button class="btn" id="copyBtn" disabled>コピー</button>
+    <button class="btn revert-btn" id="revertBtn" disabled>元に戻す</button>
+    <button class="btn" id="clearBtn" disabled>クリア</button>
+  </div>
+</div>
+
+<script>
+const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+const micBtn        = document.getElementById('micBtn');
+const micWrapper    = document.getElementById('micWrapper');
+const visualizer    = document.getElementById('visualizer');
+const statusEl      = document.getElementById('status');
+const transcriptBox = document.getElementById('transcriptBox');
+const transcriptText= document.getElementById('transcript-text');
+const copyBtn       = document.getElementById('copyBtn');
+const clearBtn      = document.getElementById('clearBtn');
+const revertBtn     = document.getElementById('revertBtn');
+const punctBadge    = document.getElementById('punctBadge');
+const punctCount    = document.getElementById('punctCount');
+
+if (!SpeechRecognition) {
+  micBtn.disabled = true;
+  statusEl.textContent = '非対応ブラウザ';
+  statusEl.classList.add('err');
+  transcriptText.innerHTML = '<span style="color:var(--danger)">Chrome/Edgeをお使いください</span>';
+} else {
+
+  let isRecording = false;
+  let finalText   = '';
+  let rawText     = '';
+  let sessionRaw  = '';
+  let recognition = null;
+
+  // ─── ローカル句読点補完 ──────────────────────────────
+  function localPunctuation(text) {
+    if (!text.trim()) return { result: text, count: 0 };
+    let s = text;
+
+    // 末尾に句点がなければ付ける
+    const lastChar = s.trimEnd().slice(-1);
+    if (lastChar && !'。．！？!?'.includes(lastChar)) {
+      s = s.trimEnd() + '。';
+    }
+
+    // 「〜ます/です/ました/でした/ません/でしょう」の直後に続く文があれば読点
+    s = s.replace(/(ます|です|ました|でした|ません|でしょう)([\u3040-\u30ff\u4e00-\u9fff])/g, '$1、$2');
+
+    // 「が/は/も/に/を/で/へ/と/より/から」の後に4文字以上続く場合に読点
+    s = s.replace(/([がはもにをでへとよりから])([\u3040-\u30ff\u4e00-\u9fff]{4,})/g, '$1、$2');
+
+    // 重複句読点を除去、読点+句点を句点に統一
+    s = s.replace(/[、。]{2,}/g, m => m[0]);
+    s = s.replace(/、。/g, '。');
+
+    const origCount = (text.match(/[、。]/g) || []).length;
+    const newCount  = (s.match(/[、。]/g) || []).length;
+    return { result: s, count: Math.max(0, newCount - origCount) };
+  }
+
+  // ─── 差分ハイライト ──────────────────────────────────
+  function buildHighlightHTML(original, completed) {
+    const PUNCT = new Set(['、', '。', '，', '．']);
+    let oi = 0;
+    let html = '';
+    for (let ci = 0; ci < completed.length; ci++) {
+      const ch = completed[ci];
+      if (PUNCT.has(ch)) {
+        if (oi < original.length && original[oi] === ch) {
+          html += esc(ch); oi++;
+        } else {
+          html += `<span class="punct-added">${esc(ch)}</span>`;
+        }
+      } else {
+        html += esc(ch); oi++;
+      }
+    }
+    return html;
+  }
+
+  // ─── 補完実行 ────────────────────────────────────────
+  function runPunctuation(text) {
+    if (!text.trim()) return;
+    rawText = text;
+    const { result, count } = localPunctuation(text);
+    finalText = result;
+
+    transcriptText.innerHTML = buildHighlightHTML(rawText, finalText);
+    punctBadge.textContent = 'Local';
+    punctBadge.className   = 'punct-badge show local';
+    punctCount.textContent = count > 0 ? `+${count}文字追加` : '変更なし';
+
+    copyBtn.disabled   = false;
+    clearBtn.disabled  = false;
+    revertBtn.disabled = (rawText === finalText);
+    statusEl.textContent = '完了';
+    statusEl.className   = 'status';
+  }
+
+  // ─── UI描画（録音中） ────────────────────────────────
+  function renderRecording(interim) {
+    const displayFinal = sessionRaw;
+    transcriptText.innerHTML =
+      (displayFinal ? `<span>${esc(displayFinal)}</span>` : '') +
+      (interim      ? `<span class="interim">${esc(interim)}</span>` : '') +
+      (!displayFinal && !interim ? '<span class="placeholder">認識中...</span>' : '');
+    copyBtn.disabled  = !displayFinal;
+    clearBtn.disabled = !(displayFinal || interim);
+  }
+
+  function setError(msg) {
+    statusEl.textContent = msg; statusEl.className = 'status err';
+  }
+
+  function setUI(recording) {
+    micBtn.classList.toggle('active', recording);
+    micWrapper.classList.toggle('recording', recording);
+    visualizer.classList.toggle('recording', recording);
+    transcriptBox.classList.toggle('active', recording);
+    statusEl.textContent = recording ? '録音中...' : (finalText || rawText ? '完了' : 'マイクをクリックして開始');
+    statusEl.className   = 'status' + (recording ? ' on' : '');
+  }
+
+  function forceStop() {
+    isRecording = false;
+    if (recognition) { recognition.onend = null; try { recognition.stop(); } catch(e){} }
+    setUI(false);
+    if (!finalText && !rawText) {
+      transcriptText.innerHTML = '<span class="placeholder">認識した文字がここに表示されます...</span>';
+    }
+    copyBtn.disabled  = !(finalText || rawText);
+    clearBtn.disabled = !(finalText || rawText);
+  }
+
+  // ─── SpeechRecognition ──────────────────────────────
+  function buildRecognition() {
+    const r = new SpeechRecognition();
+    r.lang = 'ja-JP'; r.continuous = false; r.interimResults = true; r.maxAlternatives = 1;
+
+    r.onresult = (e) => {
+      let interim = '';
+      for (let i = 0; i < e.results.length; i++) {
+        if (e.results[i].isFinal) sessionRaw += e.results[i][0].transcript;
+        else interim = e.results[i][0].transcript;
+      }
+      renderRecording(interim);
+    };
+
+    r.onerror = (e) => {
+      if (e.error === 'no-speech' || e.error === 'aborted') return;
+      setError({ 'not-allowed': 'マイクを許可してください', 'network': 'ネットワークエラー' }[e.error] || `エラー: ${e.error}`);
+      forceStop();
+    };
+
+    r.onend = () => {
+      if (!isRecording) return;
+      setTimeout(() => {
+        if (!isRecording) return;
+        try { recognition = buildRecognition(); recognition.start(); } catch(err) { forceStop(); }
+      }, 80);
+    };
+
+    return r;
+  }
+
+  // ─── ボタン ──────────────────────────────────────────
+  micBtn.addEventListener('click', () => {
+    if (isRecording) {
+      isRecording = false;
+      if (recognition) { recognition.onend = null; try { recognition.stop(); } catch(e){} }
+      setUI(false);
+      if (!sessionRaw.trim()) {
+        transcriptText.innerHTML = '<span class="placeholder">認識した文字がここに表示されます...</span>';
+        copyBtn.disabled = clearBtn.disabled = true;
+        return;
+      }
+      runPunctuation(sessionRaw);
+    } else {
+      sessionRaw = ''; rawText = ''; finalText = '';
+      isRecording = true;
+      punctBadge.className = 'punct-badge'; punctCount.textContent = '';
+      transcriptText.innerHTML = '<span class="placeholder">認識中...</span>';
+      copyBtn.disabled = clearBtn.disabled = revertBtn.disabled = true;
+      setUI(true);
+      recognition = buildRecognition();
+      try { recognition.start(); } catch(e) { setError('起動エラー'); isRecording = false; setUI(false); }
+    }
+  });
+
+  copyBtn.addEventListener('click', () => {
+    if (!finalText) return;
+    navigator.clipboard.writeText(finalText).then(() => {
+      const t = copyBtn.textContent; copyBtn.textContent = '完了!';
+      setTimeout(() => { copyBtn.textContent = t; }, 1500);
+    });
+  });
+
+  revertBtn.addEventListener('click', () => {
+    if (!rawText) return;
+    finalText = rawText;
+    transcriptText.innerHTML = esc(rawText);
+    punctBadge.className = 'punct-badge'; punctCount.textContent = '';
+    revertBtn.disabled = true; copyBtn.disabled = !rawText;
+  });
+
+  clearBtn.addEventListener('click', () => {
+    finalText = rawText = sessionRaw = '';
+    transcriptText.innerHTML = '<span class="placeholder">認識した文字がここに表示されます...</span>';
+    copyBtn.disabled = clearBtn.disabled = revertBtn.disabled = true;
+    punctBadge.className = 'punct-badge'; punctCount.textContent = '';
+    if (!isRecording) statusEl.textContent = 'マイクをクリックして開始';
+  });
+
+  function esc(s) {
+    return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+}
+</script>
+
+</body>
+</html>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@300;400;700&family=Space+Mono:wght@400;700&display=swap');
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
