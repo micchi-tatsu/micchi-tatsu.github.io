@@ -619,6 +619,7 @@ function insertDemo(){
 
 let globalFinal   = '';
 let sessionActive = false;
+let activePauseTimer = null; // セッションをまたいで参照できるタイマーID
 
 function toggleMain(){
   isRecording ? stopMain() : startMain();
@@ -658,6 +659,31 @@ function launchSession(){
   rec.interimResults  = true;
   rec.maxAlternatives = 1;
 
+  // ── 無音タイマー ───────────────────────────────────────────
+  // isFinalが来てから PAUSE_MS ミリ秒以上新しい音声が来なければ
+  // rawTextの末尾に句点を追加する（文の区切りを自動検出）
+  const PAUSE_MS   = 1500; // 無音判定時間（ms）
+  let   pauseTimer = null;
+
+  function resetPauseTimer(){
+    if(pauseTimer) clearTimeout(pauseTimer);
+    pauseTimer = setTimeout(()=>{
+      if(rawText && !/[。！？、]$/.test(rawText)){
+        rawText    += '。';
+        globalFinal = rawText;
+        updateDisplay(rawText, '');
+        updateButtons();
+      }
+    }, PAUSE_MS);
+    activePauseTimer = pauseTimer; // グローバルにも保持
+  }
+
+  function clearPauseTimer(){
+    if(pauseTimer){ clearTimeout(pauseTimer); pauseTimer = null; }
+    activePauseTimer = null;
+  }
+  // ─────────────────────────────────────────────────────────────
+
   rec.onresult = (e) => {
     for(let i = e.resultIndex; i < e.results.length; i++){
       if(!e.results[i].isFinal) continue;
@@ -666,11 +692,9 @@ function launchSession(){
       if(!word) continue;
 
       // 重複チェック: rawTextが既にこのwordで終わっているなら無視
-      // （同じ発話がisFinal=trueで複数回来るケースへの対応）
       if(rawText.endsWith(word)) continue;
 
       // 部分重複チェック: rawTextの末尾がwordの先頭と重なっている場合
-      // 例: rawText="今日は作業を" word="作業を行った" → "行った"だけ追加
       let toAdd = word;
       for(let len = Math.min(word.length - 1, 20); len > 0; len--){
         if(rawText.endsWith(word.slice(0, len))){
@@ -682,6 +706,7 @@ function launchSession(){
       if(toAdd){
         rawText    += toAdd;
         globalFinal = rawText;
+        resetPauseTimer(); // 確定テキストが来たらタイマーをリセット
       }
     }
 
@@ -700,6 +725,7 @@ function launchSession(){
   };
 
   rec.onend = () => {
+    clearPauseTimer(); // セッション終了時はタイマーをキャンセル
     sessionActive = false;
     updateDisplay(rawText, '');
     if(isRecording){
@@ -720,6 +746,8 @@ function launchSession(){
 
 function stopMain(){
   isRecording = false;
+  // 無音タイマーをキャンセル
+  if(activePauseTimer){ clearTimeout(activePauseTimer); activePauseTimer = null; }
   if(recognition){
     try { recognition.stop(); } catch(e){}
     recognition = null;
