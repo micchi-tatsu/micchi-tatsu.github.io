@@ -619,11 +619,9 @@ function insertDemo(){
 
 let globalFinal      = '';
 let sessionActive    = false;
-let activePauseTimer = null;   // 読点タイマーID
-let activeKutenTimer = null;   // 句点タイマーID
-// addedWords: セッションをまたいで重複追記を防ぐためグローバルで管理。
-// startMain()時にリセット、launchSession()ではリセットしない。
-let addedWords = new Set();
+let activePauseTimer = null;  // 読点タイマーID
+let activeKutenTimer = null;  // 句点タイマーID
+let lastFinalAt      = null;  // 最後にisFinalを受け取った時刻
 
 function toggleMain(){
   isRecording ? stopMain() : startMain();
@@ -634,23 +632,22 @@ function startMain(){
   if(!SR){ alert('Chrome または Edge をご使用ください'); return; }
   isRecording = true;
   globalFinal = rawText;
-  addedWords  = new Set();   // 録音開始時のみリセット
+  lastFinalAt = null;
   setRecState(true);
   setStep(2);
   launchSession();
 }
 
 // ── 無音区間タイマー ─────────────────────────────────────────────
-// 無音 SHORT_MS（1秒）→ 「、」追加
-// 無音 LONG_MS （3秒）→ 「、」を「。」に置き換え
-// 次の発話が来たらタイマーをキャンセル（追加済みの記号は削除しない）
-// セッション再起動（Chrome30秒強制切れ）時はタイマーを引き継ぐ
+// 無音15秒以上60秒以内 → 「、」追加
+// 無音60秒超え         → 「。」追加
+// 次の発話が来ても追加済みの記号は削除しない
 const SHORT_MS = 1000;   // 読点タイミング（1秒）
 const LONG_MS  = 3000;   // 句点タイミング（3秒）
 
 function startSilenceTimers(){
   cancelSilenceTimers();
-  // SHORT_MS後: 読点
+  // 15秒後: 読点
   activePauseTimer = setTimeout(()=>{
     activePauseTimer = null;
     if(rawText && !/[。！？、]$/.test(rawText)){
@@ -659,7 +656,7 @@ function startSilenceTimers(){
       updateDisplay(rawText, '');
       updateButtons();
     }
-    // 残り（LONG_MS - SHORT_MS）後: 読点→句点に置き換え
+    // 残り45秒後（合計60秒）: 読点→句点に置き換え
     activeKutenTimer = setTimeout(()=>{
       activeKutenTimer = null;
       if(rawText && rawText.endsWith('、')){
@@ -706,42 +703,31 @@ function launchSession(){
   rec.interimResults  = true;
   rec.maxAlternatives = 1;
 
+  const addedWords = new Set();
+
   rec.onresult = (e) => {
     for(let i = e.resultIndex; i < e.results.length; i++){
       if(!e.results[i].isFinal) continue;
 
-      const word = e.results[i][0].transcript.trim();
+      const word = e.results[i][0].transcript;
       if(!word) continue;
 
-      // ── 重複防止: 3段階チェック ──────────────────────────────
-      // [1] addedWords: 同一transcriptの完全一致（セッションをまたぐ再送も防ぐ）
-      if(addedWords.has(word)){ continue; }
+      if(addedWords.has(word)) continue;
+      if(rawText.endsWith(word)){ addedWords.add(word); continue; }
 
-      // [2] rawText末尾との完全一致
-      if(rawText.endsWith(word)){
-        addedWords.add(word);
-        continue;
-      }
-
-      // [3] 部分重複: wordの先頭がrawText末尾と重なる場合は差分のみ追記
-      //     例: rawText="...パソコンの" word="パソコンの追加作業"
-      //     → toAdd="追加作業" だけ追記
+      // 部分重複チェック
       let toAdd = word;
-      for(let len = Math.min(word.length - 1, rawText.length, 30); len > 0; len--){
+      for(let len = Math.min(word.length - 1, 20); len > 0; len--){
         if(rawText.endsWith(word.slice(0, len))){
           toAdd = word.slice(len);
           break;
         }
       }
 
-      // [4] toAdd自体もrawText末尾に既にある場合はスキップ
-      if(!toAdd || rawText.endsWith(toAdd)){
+      if(toAdd){
         addedWords.add(word);
-        continue;
+        appendConfirmed(toAdd);
       }
-
-      addedWords.add(word);
-      appendConfirmed(toAdd);
     }
 
     // interim表示
@@ -754,8 +740,6 @@ function launchSession(){
   };
 
   rec.onerror = (e) => {
-    // aborted: stopMain()による意図的停止 → タイマーはstopMain()側でキャンセル済み
-    // no-speech: 無音タイムアウト → タイマーは引き継ぐ（onendで再起動される）
     if(e.error === 'aborted' || e.error === 'no-speech') return;
     console.warn('rec error:', e.error);
   };
@@ -764,13 +748,8 @@ function launchSession(){
     sessionActive = false;
     updateDisplay(rawText, '');
     if(isRecording){
-      // Chrome の強制セッション終了（約30秒）による再起動。
-      // タイマーは cancelSilenceTimers() せずに引き継ぐ。
-      // ただし interim 表示が消えた直後にタイマーが残ったまま
-      // 再起動するのは正常なので何もしない。
       setTimeout(launchSession, 100);
     } else {
-      // 手動停止: stopMain() 側で cancelSilenceTimers() 済み
       setRecState(false);
     }
   };
