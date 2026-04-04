@@ -645,50 +645,45 @@ function launchSession(){
   recognition   = rec;
   sessionActive = true;
 
-  rec.lang             = 'ja-JP';
-  rec.continuous       = false; // 1発話で自動終了 → 重複が起きない
-  rec.interimResults   = true;
-  rec.maxAlternatives  = 1;
+  rec.lang            = 'ja-JP';
+  rec.continuous      = false;
+  rec.interimResults  = true;
+  rec.maxAlternatives = 1;
 
-  // このセッションで得た確定テキスト
-  let sesText  = '';
-  // このセッションで既にonresultが来たか（onend重複防止フラグ）
-  let gotResult = false;
+  // isFinalを受け取ったresultIndexを記録して二重処理を防ぐ
+  const processedIdx = new Set();
 
   rec.onresult = (e) => {
-    gotResult = true;
-    sesText = '';
-    // isFinalの結果だけを蓄積（resultIndexから走査）
+    let addedFinal = false;
     for(let i = e.resultIndex; i < e.results.length; i++){
-      if(e.results[i].isFinal) sesText += e.results[i][0].transcript;
+      if(e.results[i].isFinal && !processedIdx.has(i)){
+        processedIdx.add(i);
+        globalFinal += e.results[i][0].transcript; // その場で確定・追記
+        rawText      = globalFinal;
+        addedFinal   = true;
+      }
     }
-    // interimは末尾の未確定結果だけ表示用に取る
+    // interimは末尾の未確定結果だけ（表示専用、rawTextに混入しない）
     let interim = '';
     const last = e.results[e.results.length - 1];
     if(!last.isFinal) interim = last[0].transcript;
 
-    updateDisplay(globalFinal + sesText, interim);
+    updateDisplay(rawText, interim);
+    if(addedFinal) updateButtons();
   };
 
   rec.onerror = (e) => {
-    if(e.error === 'aborted' || e.error === 'no-speech') return; // 無視して onend へ
+    if(e.error === 'aborted' || e.error === 'no-speech') return;
     console.warn('rec error:', e.error);
   };
 
   rec.onend = () => {
     sessionActive = false;
-    // 確定テキストを globalFinal に一度だけ追記
-    if(sesText) {
-      globalFinal += sesText;
-      rawText      = globalFinal;
-      updateDisplay(rawText, '');
-      updateButtons();
-    }
-    // 録音継続中なら次のセッションを起動
+    // onendでは追記しない（onresultで確定済み）
+    updateDisplay(rawText, '');
     if(isRecording){
       setTimeout(launchSession, 120);
     } else {
-      updateDisplay(rawText, '');
       setRecState(false);
     }
   };
