@@ -636,73 +636,71 @@ function startMain(){
 function launchRecognition(){
   if(!isRecording) return;
 
-  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
-  recognition = new SR();
-  recognition.lang = 'ja-JP';
-  recognition.continuous = true;
-  recognition.interimResults = true;
-  recognition.maxAlternatives = 1;
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  const rec = new SR();
+  recognition = rec;
+  rec.lang = 'ja-JP';
+  rec.continuous = true;
+  rec.interimResults = true;
+  rec.maxAlternatives = 1;
 
-  // このセッション内でのfinalテキスト蓄積
-  // セッションをまたぐ場合はconfirmedTextが引き継がれる
+  // セッション開始時点のベーステキストを固定（再起動しても変わらない）
+  const baseText = rawText;
+
+  // このセッション内で確定したテキスト（isFinalのみ蓄積）
   let sessionFinal = '';
+  // onendが既に確定処理を済ませたか（二重確定防止）
+  let committed = false;
 
-  recognition.onresult = (e) => {
-    // resultIndexからのみ処理（重複防止の核心）
+  function commit(){
+    if(committed) return;
+    committed = true;
+    rawText = baseText + sessionFinal;
+    confirmedText = rawText;
+  }
+
+  rec.onresult = (e) => {
+    // resultIndexから処理することで前回分の再処理を防ぐ
     for(let i = e.resultIndex; i < e.results.length; i++){
-      const result = e.results[i];
-      if(result.isFinal){
-        sessionFinal += result[0].transcript;
+      if(e.results[i].isFinal){
+        sessionFinal += e.results[i][0].transcript;
       }
     }
 
-    // interimは最後の未確定結果のみ取得
+    // interimは最末尾の未確定結果だけ
     let interim = '';
     const last = e.results[e.results.length - 1];
-    if(!last.isFinal){
-      interim = last[0].transcript;
-    }
+    if(!last.isFinal) interim = last[0].transcript;
 
-    // confirmedText = セッション前の確定済み + 今セッションの確定済み
-    confirmedText = rawText + sessionFinal;
-
-    // 表示: 確定済み + 現在のinterim（薄字で区別）
-    updateDisplay(confirmedText, interim);
+    // 表示更新（rawTextは変えない。確定はonendで行う）
+    updateDisplay(baseText + sessionFinal, interim);
   };
 
-  recognition.onerror = (e) => {
-    // network/no-speechエラーは無視して継続、abort以外は再起動
+  rec.onerror = (e) => {
     if(e.error === 'aborted') return;
     if(e.error === 'no-speech'){
-      // 無音タイムアウト: セッション再起動
-      if(isRecording){
-        rawText = confirmedText;
-        launchRecognition();
-      }
+      // 無音タイムアウト: commitしてから再起動
+      commit();
+      if(isRecording) setTimeout(()=>launchRecognition(), 150);
       return;
     }
     console.warn('SpeechRecognition error:', e.error);
   };
 
-  recognition.onend = () => {
-    // isFinalが来る前にセッションが終わった場合、sessionFinalを確定
-    rawText = rawText + sessionFinal;
-    confirmedText = rawText;
-
+  rec.onend = () => {
+    commit(); // 必ずcommitしてからonendを終える
     if(isRecording){
-      // 録音継続中: 自動再起動
-      setTimeout(()=>launchRecognition(), 100);
+      // 録音継続中: セッション再起動
+      setTimeout(()=>launchRecognition(), 150);
     } else {
-      // 停止操作による終了
       updateDisplay(rawText, '');
       setRecState(false);
     }
   };
 
   try {
-    recognition.start();
+    rec.start();
   } catch(err){
-    // 既に起動中などの場合
     console.warn('recognition.start() error:', err);
   }
 }
@@ -913,13 +911,41 @@ function clearStruct(){
   });
 }
 
-function demoFill(text,type,loc){
-  const preview=text.length>40?text.slice(0,40)+'…':text;
+function demoFill(text, type, loc){
+  // 文単位に分割（句点・感嘆符・疑問符で区切る）
+  const sentences = text
+    .replace(/([。！？])/g, '$1|')
+    .split('|')
+    .map(s => s.trim())
+    .filter(s => s.length > 1);
+
+  const issueKw  = /問題|不足|切れ|故障|異常|エラー|遅延|不具合|警告|要対応|連絡済|発注/;
+  const nextKw   = /明日|次回|予定|引き継ぎ|続き|今後|する予定|行う予定|を予定/;
+  const detailKw = /実施|完了|行った|した|チェック|点検|記録|確認|対応|作業|処理/;
+
+  const issueLines = [], nextLines = [], detailLines = [], otherLines = [];
+
+  sentences.forEach(s => {
+    if(issueKw.test(s))       issueLines.push(s);
+    else if(nextKw.test(s))   nextLines.push(s);
+    else if(detailKw.test(s)) detailLines.push(s);
+    else                      otherLines.push(s);
+  });
+
+  const summaryBase = sentences[0] || text.slice(0, 60);
+  const summary = (loc && loc !== '未指定' ? loc + 'にて' : '') +
+                  (type ? type + 'を実施。' : '') + summaryBase;
+
+  const detailAll = [...detailLines, ...otherLines]
+    .filter(s => !issueLines.includes(s) && !nextLines.includes(s));
+  const detail = (detailAll.length > 0 ? detailAll : sentences.slice(0, 3))
+    .map(s => '・' + s).join('\n');
+
   return {
-    summary:`${loc}にて${type}を実施。${preview}`,
-    detail:`・音声で報告された作業内容の実施\n・関連設備の確認・記録\n・完了確認`,
-    issue:'',
-    next:'通常業務を継続'
+    summary,
+    detail,
+    issue: issueLines.map(s => '・' + s).join('\n'),
+    next:  nextLines.map(s => '・' + s).join('\n')
   };
 }
 
