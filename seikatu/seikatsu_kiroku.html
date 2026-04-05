@@ -1049,19 +1049,30 @@ async function saveRecord() {
 
   const data = getFormData();
 
+  // GASはPOST+application/jsonでCORSエラーになるためGET方式で送信
   try {
-    const res = await fetch(GAS_URL, {
-      method: 'POST',
-      mode: 'no-cors',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'save', role: currentRole, password: PASSWORDS[currentRole], data })
-    });
-    // no-corsではレスポンス読めないので楽観的更新（UPSERT）
-    const idx = allRecords.findIndex(r => r.date === data.date);
-    if (idx >= 0) allRecords[idx] = data; else allRecords.push(data);
-    showToast('✅ 保存しました');
+    const dataParam = encodeURIComponent(JSON.stringify(data));
+    const url = GAS_URL
+      + '?action=save'
+      + '&role=' + encodeURIComponent(currentRole)
+      + '&password=' + encodeURIComponent(PASSWORDS[currentRole])
+      + '&data=' + dataParam;
+
+    const res = await fetch(url);
+    const json = await res.json();
+
+    if (json.success) {
+      const idx = allRecords.findIndex(r => r.date === data.date);
+      if (idx >= 0) allRecords[idx] = data; else allRecords.push(data);
+      showToast('✅ 保存しました');
+      renderViewList();
+    } else {
+      showToast('❌ エラー: ' + (json.error || '不明'));
+      console.error('GAS save error:', json);
+    }
   } catch(e) {
-    showToast('❌ 保存に失敗しました');
+    showToast('❌ 通信エラー。GAS_URLを確認してください');
+    console.error('fetch error:', e);
   }
 
   btn.disabled = false;
@@ -1072,17 +1083,42 @@ async function saveRecord() {
 // LOAD RECORDS FROM GAS
 // ============================================================
 async function loadRecords() {
-  try {
-    const res = await fetch(`${GAS_URL}?action=getAll&role=${currentRole}&password=${PASSWORDS[currentRole]}`);
-    const json = await res.json();
-    allRecords = json.records || [];
-  } catch(e) {
-    // GAS未設定時はサンプルデータで動作確認
+  // GAS未設定の場合はサンプルデータ
+  if (!GAS_URL || GAS_URL === 'YOUR_GAS_WEB_APP_URL_HERE') {
+    console.warn('GAS_URLが未設定です。サンプルデータで表示します。');
     allRecords = generateSampleData();
+    document.getElementById('viewLoading').style.display = 'none';
+    renderViewList();
+    loadFormForDate(toYMD(currentDate));
+    updateSaveButton(toYMD(currentDate));
+    renderGraph();
+    return;
   }
+
+  try {
+    const url = GAS_URL
+      + '?action=getAll'
+      + '&role=' + encodeURIComponent(currentRole)
+      + '&password=' + encodeURIComponent(PASSWORDS[currentRole]);
+
+    const res = await fetch(url);
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+
+    const json = await res.json();
+    if (json.error) throw new Error(json.error);
+
+    allRecords = json.records || [];
+    console.log('GASから ' + allRecords.length + ' 件取得しました');
+  } catch(e) {
+    console.error('loadRecords error:', e);
+    showToast('⚠️ データ読込エラー: ' + e.message);
+    allRecords = [];
+  }
+
   document.getElementById('viewLoading').style.display = 'none';
   renderViewList();
   loadFormForDate(toYMD(currentDate));
+  updateSaveButton(toYMD(currentDate));
   renderGraph();
 }
 
