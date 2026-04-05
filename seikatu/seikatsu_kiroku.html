@@ -1,0 +1,1282 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>生活記録</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;700&family=Zen+Kaku+Gothic+New:wght@400;700&display=swap');
+
+  :root {
+    --bg: #F5F3EE;
+    --surface: #FFFFFF;
+    --surface2: #F0EDE6;
+    --border: #D8D2C8;
+    --text: #2C2825;
+    --text-sub: #7A7168;
+    --accent: #5B8C7A;
+    --accent-light: #D4E8E1;
+    --warn: #C0624A;
+    --warn-light: #F5DDD8;
+    --purple: #7F77DD;
+    --purple-light: #ECEAFC;
+    --radius: 12px;
+    --shadow: 0 2px 12px rgba(0,0,0,0.08);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Noto Sans JP', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    font-size: 15px;
+    line-height: 1.6;
+  }
+
+  /* ===== LOGIN ===== */
+  #loginScreen {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    background: linear-gradient(135deg, #2C2825 0%, #4A4540 100%);
+  }
+
+  .login-card {
+    background: var(--surface);
+    border-radius: 20px;
+    padding: 40px 32px;
+    width: 100%;
+    max-width: 360px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+  }
+
+  .login-title {
+    font-family: 'Zen Kaku Gothic New', sans-serif;
+    font-size: 22px;
+    font-weight: 700;
+    text-align: center;
+    margin-bottom: 6px;
+    color: var(--text);
+  }
+
+  .login-sub {
+    text-align: center;
+    color: var(--text-sub);
+    font-size: 13px;
+    margin-bottom: 32px;
+  }
+
+  .login-btn-group {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-bottom: 24px;
+  }
+
+  .role-btn {
+    padding: 14px;
+    border: 2px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--surface2);
+    cursor: pointer;
+    font-family: 'Noto Sans JP', sans-serif;
+    font-size: 15px;
+    font-weight: 500;
+    transition: all 0.2s;
+    color: var(--text);
+  }
+
+  .role-btn.selected {
+    border-color: var(--accent);
+    background: var(--accent-light);
+    color: var(--accent);
+  }
+
+  .pw-wrap {
+    position: relative;
+    margin-bottom: 16px;
+  }
+
+  .pw-wrap input {
+    width: 100%;
+    padding: 14px 16px;
+    border: 2px solid var(--border);
+    border-radius: var(--radius);
+    font-family: 'Noto Sans JP', sans-serif;
+    font-size: 16px;
+    background: var(--surface);
+    color: var(--text);
+    outline: none;
+    transition: border-color 0.2s;
+  }
+
+  .pw-wrap input:focus { border-color: var(--accent); }
+
+  .login-submit {
+    width: 100%;
+    padding: 16px;
+    background: var(--accent);
+    color: white;
+    border: none;
+    border-radius: var(--radius);
+    font-family: 'Noto Sans JP', sans-serif;
+    font-size: 16px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: opacity 0.2s;
+    letter-spacing: 0.05em;
+  }
+
+  .login-submit:hover { opacity: 0.85; }
+
+  .login-error {
+    color: var(--warn);
+    font-size: 13px;
+    text-align: center;
+    margin-top: 10px;
+    display: none;
+  }
+
+  /* ===== MAIN APP ===== */
+  #app { display: none; }
+
+  .header {
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 14px 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    box-shadow: var(--shadow);
+  }
+
+  .header-title {
+    font-family: 'Zen Kaku Gothic New', sans-serif;
+    font-weight: 700;
+    font-size: 17px;
+  }
+
+  .header-role {
+    font-size: 12px;
+    color: var(--text-sub);
+    background: var(--surface2);
+    padding: 4px 10px;
+    border-radius: 20px;
+  }
+
+  .tab-bar {
+    display: flex;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 0 16px;
+    gap: 4px;
+    overflow-x: auto;
+  }
+
+  .tab {
+    padding: 12px 16px;
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--text-sub);
+    cursor: pointer;
+    border-bottom: 3px solid transparent;
+    white-space: nowrap;
+    transition: all 0.2s;
+  }
+
+  .tab.active {
+    color: var(--accent);
+    border-bottom-color: var(--accent);
+  }
+
+  .page { display: none; padding: 20px 16px 80px; }
+  .page.active { display: block; }
+
+  /* ===== FORM ===== */
+  .date-nav {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: var(--surface);
+    border-radius: var(--radius);
+    padding: 14px 16px;
+    margin-bottom: 16px;
+    box-shadow: var(--shadow);
+  }
+
+  .date-nav button {
+    background: var(--surface2);
+    border: none;
+    border-radius: 8px;
+    width: 36px;
+    height: 36px;
+    font-size: 18px;
+    cursor: pointer;
+    color: var(--text);
+  }
+
+  .date-label {
+    font-family: 'Zen Kaku Gothic New', sans-serif;
+    font-weight: 700;
+    font-size: 17px;
+    cursor: pointer;
+  }
+
+  .section-card {
+    background: var(--surface);
+    border-radius: var(--radius);
+    padding: 20px;
+    margin-bottom: 14px;
+    box-shadow: var(--shadow);
+  }
+
+  .section-title {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--text-sub);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    margin-bottom: 14px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .field-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 12px;
+  }
+
+  .field-label {
+    font-size: 14px;
+    font-weight: 500;
+    min-width: 72px;
+    color: var(--text);
+  }
+
+  .field-input {
+    flex: 1;
+    padding: 10px 12px;
+    border: 1.5px solid var(--border);
+    border-radius: 8px;
+    font-family: 'Noto Sans JP', sans-serif;
+    font-size: 15px;
+    background: var(--surface);
+    color: var(--text);
+    outline: none;
+    transition: border-color 0.2s;
+  }
+
+  .field-input:focus { border-color: var(--accent); }
+
+  textarea.field-input {
+    resize: none;
+    min-height: 80px;
+  }
+
+  /* Radio group */
+  .radio-group {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    flex: 1;
+  }
+
+  .radio-chip {
+    padding: 8px 14px;
+    border: 1.5px solid var(--border);
+    border-radius: 20px;
+    font-size: 13px;
+    cursor: pointer;
+    transition: all 0.15s;
+    background: var(--surface);
+    color: var(--text);
+    user-select: none;
+  }
+
+  .radio-chip.selected-good {
+    background: var(--accent-light);
+    border-color: var(--accent);
+    color: var(--accent);
+    font-weight: 700;
+  }
+
+  .radio-chip.selected-bad {
+    background: var(--warn-light);
+    border-color: var(--warn);
+    color: var(--warn);
+    font-weight: 700;
+  }
+
+  .radio-chip.selected-mid {
+    background: var(--purple-light);
+    border-color: var(--purple);
+    color: var(--purple);
+    font-weight: 700;
+  }
+
+  /* Scale slider */
+  .scale-wrap {
+    flex: 1;
+  }
+
+  .scale-labels {
+    display: flex;
+    justify-content: space-between;
+    font-size: 11px;
+    color: var(--text-sub);
+    margin-bottom: 4px;
+  }
+
+  input[type=range] {
+    width: 100%;
+    accent-color: var(--accent);
+    height: 6px;
+  }
+
+  /* Meds */
+  .med-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 10px;
+  }
+
+  .med-row .field-input { width: 80px; flex: none; }
+  .med-row span { font-size: 13px; color: var(--text-sub); }
+
+  /* Save button */
+  .save-btn {
+    width: 100%;
+    padding: 18px;
+    background: var(--accent);
+    color: white;
+    border: none;
+    border-radius: var(--radius);
+    font-family: 'Noto Sans JP', sans-serif;
+    font-size: 17px;
+    font-weight: 700;
+    cursor: pointer;
+    margin-top: 8px;
+    transition: opacity 0.2s;
+    letter-spacing: 0.05em;
+  }
+
+  .save-btn:hover { opacity: 0.85; }
+  .save-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  /* ===== VIEW ===== */
+  .week-card {
+    background: var(--surface);
+    border-radius: var(--radius);
+    overflow: hidden;
+    margin-bottom: 16px;
+    box-shadow: var(--shadow);
+  }
+
+  .week-header {
+    background: var(--text);
+    color: white;
+    padding: 12px 16px;
+    font-size: 14px;
+    font-weight: 700;
+  }
+
+  .record-item {
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--border);
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+
+  .record-item:last-child { border-bottom: none; }
+  .record-item:hover { background: var(--surface2); }
+
+  .record-date {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--accent);
+    margin-bottom: 4px;
+  }
+
+  .record-summary {
+    font-size: 13px;
+    color: var(--text-sub);
+  }
+
+  /* ===== GRAPH ===== */
+  .graph-controls {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 16px;
+    flex-wrap: wrap;
+  }
+
+  .graph-btn {
+    padding: 8px 16px;
+    border: 1.5px solid var(--border);
+    border-radius: 20px;
+    background: var(--surface);
+    font-family: 'Noto Sans JP', sans-serif;
+    font-size: 13px;
+    cursor: pointer;
+    transition: all 0.15s;
+    color: var(--text);
+  }
+
+  .graph-btn.active {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: white;
+    font-weight: 700;
+  }
+
+  .chart-wrap {
+    background: var(--surface);
+    border-radius: var(--radius);
+    padding: 20px;
+    box-shadow: var(--shadow);
+    overflow-x: auto;
+  }
+
+  canvas { max-width: 100%; }
+
+  /* ===== DETAIL MODAL ===== */
+  .modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.5);
+    z-index: 200;
+    display: none;
+    align-items: flex-end;
+    justify-content: center;
+  }
+
+  .modal-overlay.open { display: flex; }
+
+  .modal-sheet {
+    background: var(--surface);
+    border-radius: 20px 20px 0 0;
+    width: 100%;
+    max-width: 600px;
+    max-height: 80vh;
+    overflow-y: auto;
+    padding: 24px 20px 40px;
+    animation: slideUp 0.3s ease;
+  }
+
+  @keyframes slideUp {
+    from { transform: translateY(100%); }
+    to { transform: translateY(0); }
+  }
+
+  .modal-handle {
+    width: 40px;
+    height: 4px;
+    background: var(--border);
+    border-radius: 2px;
+    margin: 0 auto 20px;
+  }
+
+  .modal-date {
+    font-family: 'Zen Kaku Gothic New', sans-serif;
+    font-size: 20px;
+    font-weight: 700;
+    margin-bottom: 16px;
+  }
+
+  .detail-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 14px;
+  }
+
+  .detail-key { color: var(--text-sub); }
+  .detail-val { font-weight: 500; text-align: right; max-width: 60%; }
+
+  /* Toast */
+  .toast {
+    position: fixed;
+    bottom: 30px;
+    left: 50%;
+    transform: translateX(-50%) translateY(80px);
+    background: var(--text);
+    color: white;
+    padding: 12px 24px;
+    border-radius: 20px;
+    font-size: 14px;
+    font-weight: 500;
+    z-index: 300;
+    transition: transform 0.3s ease;
+    pointer-events: none;
+  }
+
+  .toast.show { transform: translateX(-50%) translateY(0); }
+
+  /* Loading */
+  .loading {
+    text-align: center;
+    padding: 40px;
+    color: var(--text-sub);
+    font-size: 14px;
+  }
+
+  .spinner {
+    width: 32px;
+    height: 32px;
+    border: 3px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    margin: 0 auto 12px;
+  }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* Readonly overlay */
+  .readonly-overlay {
+    pointer-events: none;
+    opacity: 0.7;
+  }
+</style>
+</head>
+<body>
+
+<!-- ===== LOGIN ===== -->
+<div id="loginScreen">
+  <div class="login-card">
+    <div class="login-title">生活記録</div>
+    <div class="login-sub">ログインしてください</div>
+
+    <div class="login-btn-group">
+      <button class="role-btn" onclick="selectRole('editor')" id="btnEditor">
+        ✏️ 入力者（入力・閲覧）
+      </button>
+      <button class="role-btn" onclick="selectRole('viewer')" id="btnViewer">
+        👁️ 閲覧者（閲覧のみ）
+      </button>
+    </div>
+
+    <div class="pw-wrap">
+      <input type="password" id="pwInput" placeholder="パスワードを入力" />
+    </div>
+    <button class="login-submit" onclick="doLogin()">ログイン</button>
+    <div class="login-error" id="loginError">パスワードが違います</div>
+  </div>
+</div>
+
+<!-- ===== APP ===== -->
+<div id="app">
+  <div class="header">
+    <div class="header-title">📋 生活記録</div>
+    <div class="header-role" id="roleLabel"></div>
+  </div>
+
+  <div class="tab-bar" id="tabBar">
+    <div class="tab active" onclick="showTab('inputTab', this)" id="tabInput">入力</div>
+    <div class="tab" onclick="showTab('viewTab', this)" id="tabView">記録一覧</div>
+    <div class="tab" onclick="showTab('graphTab', this)" id="tabGraph">グラフ</div>
+  </div>
+
+  <!-- INPUT PAGE -->
+  <div class="page active" id="inputTab">
+    <div class="date-nav">
+      <button onclick="changeDate(-1)">◀</button>
+      <div class="date-label" id="currentDateLabel" onclick="openDatePicker()">2025年4月5日（日）</div>
+      <button onclick="changeDate(1)">▶</button>
+    </div>
+    <input type="date" id="hiddenDatePicker" style="display:none" onchange="onDatePickerChange(this.value)">
+
+    <!-- 食事 -->
+    <div class="section-card">
+      <div class="section-title">🍽 食事</div>
+      <div class="field-row">
+        <div class="field-label">朝食</div>
+        <input class="field-input" type="text" id="f_breakfast" placeholder="例：トースト、ヨーグルト">
+      </div>
+      <div class="field-row">
+        <div class="field-label">昼食</div>
+        <input class="field-input" type="text" id="f_lunch" placeholder="例：うどん">
+      </div>
+      <div class="field-row">
+        <div class="field-label">夕食</div>
+        <input class="field-input" type="text" id="f_dinner" placeholder="例：ご飯、味噌汁">
+      </div>
+      <div class="field-row">
+        <div class="field-label">間食等</div>
+        <input class="field-input" type="text" id="f_snack" placeholder="例：チョコ、お茶">
+      </div>
+    </div>
+
+    <!-- 体 -->
+    <div class="section-card">
+      <div class="section-title">⚖️ 体</div>
+      <div class="field-row">
+        <div class="field-label">体重</div>
+        <input class="field-input" type="number" step="0.1" id="f_weight" placeholder="kg" style="max-width:100px">
+        <span style="color:var(--text-sub);font-size:14px">kg</span>
+      </div>
+      <div class="field-row">
+        <div class="field-label">Kot</div>
+        <input class="field-input" type="text" id="f_kot" placeholder="メモ">
+      </div>
+    </div>
+
+    <!-- 外出・来訪 -->
+    <div class="section-card">
+      <div class="section-title">🚶 外出・来訪</div>
+      <div class="field-row">
+        <div class="field-label">外出</div>
+        <input class="field-input" type="text" id="f_outing" placeholder="行き先・目的など">
+      </div>
+      <div class="field-row">
+        <div class="field-label">来訪</div>
+        <input class="field-input" type="text" id="f_visitor" placeholder="訪問者など">
+      </div>
+    </div>
+
+    <!-- 睡眠 -->
+    <div class="section-card">
+      <div class="section-title">🌙 睡眠</div>
+      <div class="field-row">
+        <div class="field-label">夜間</div>
+        <div class="radio-group" id="rg_sleep">
+          <div class="radio-chip" onclick="selectChip('rg_sleep', this, 'good')">熟眠</div>
+          <div class="radio-chip" onclick="selectChip('rg_sleep', this, 'mid')">浅眠</div>
+          <div class="radio-chip" onclick="selectChip('rg_sleep', this, 'bad')">不眠</div>
+        </div>
+      </div>
+      <div class="field-row">
+        <div class="field-label">お昼寝</div>
+        <div class="radio-group" id="rg_nap">
+          <div class="radio-chip" onclick="selectChip('rg_nap', this, 'good')">あり</div>
+          <div class="radio-chip" onclick="selectChip('rg_nap', this, 'mid')">なし</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 服薬 -->
+    <div class="section-card">
+      <div class="section-title">💊 服薬</div>
+      <div style="font-size:13px;color:var(--text-sub);margin-bottom:12px">デパス</div>
+      <div class="med-row">
+        <input class="field-input" type="time" id="f_dep1_time" placeholder="時刻">
+        <input class="field-input" type="number" step="0.5" min="0" id="f_dep1_dose" placeholder="錠数" style="width:70px">
+        <span>錠</span>
+      </div>
+      <div class="med-row">
+        <input class="field-input" type="time" id="f_dep2_time" placeholder="時刻">
+        <input class="field-input" type="number" step="0.5" min="0" id="f_dep2_dose" placeholder="錠数" style="width:70px">
+        <span>錠</span>
+      </div>
+      <div style="font-size:13px;color:var(--text-sub);margin:12px 0 8px">漢方</div>
+      <div class="med-row">
+        <input class="field-input" type="time" id="f_kanpo1">
+        <input class="field-input" type="time" id="f_kanpo2">
+        <input class="field-input" type="time" id="f_kanpo3">
+      </div>
+    </div>
+
+    <!-- 状態 -->
+    <div class="section-card">
+      <div class="section-title">📊 状態</div>
+      <div class="field-row">
+        <div class="field-label">調子</div>
+        <div class="radio-group" id="rg_condition">
+          <div class="radio-chip" onclick="selectChip('rg_condition', this, 'bad')">悪い</div>
+          <div class="radio-chip" onclick="selectChip('rg_condition', this, 'mid')">普通</div>
+          <div class="radio-chip" onclick="selectChip('rg_condition', this, 'good')">良い</div>
+        </div>
+      </div>
+      <div class="field-row">
+        <div class="field-label">躁鬱</div>
+        <div class="radio-group" id="rg_mood">
+          <div class="radio-chip" onclick="selectChip('rg_mood', this, 'bad')">鬱</div>
+          <div class="radio-chip" onclick="selectChip('rg_mood', this, 'mid')">普通</div>
+          <div class="radio-chip" onclick="selectChip('rg_mood', this, 'good')">躁</div>
+        </div>
+      </div>
+      <div class="field-row">
+        <div class="field-label">疲労感</div>
+        <div class="radio-group" id="rg_fatigue">
+          <div class="radio-chip" onclick="selectChip('rg_fatigue', this, 'bad')">強</div>
+          <div class="radio-chip" onclick="selectChip('rg_fatigue', this, 'mid')">普通</div>
+          <div class="radio-chip" onclick="selectChip('rg_fatigue', this, 'good')">弱</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 入浴・清潔 -->
+    <div class="section-card">
+      <div class="section-title">🛁 入浴・清潔</div>
+      <div class="field-row">
+        <div class="field-label">入浴</div>
+        <div class="radio-group" id="rg_bath">
+          <div class="radio-chip" onclick="selectChip('rg_bath', this, 'good')">入った</div>
+          <div class="radio-chip" onclick="selectChip('rg_bath', this, 'mid')">シャワー</div>
+          <div class="radio-chip" onclick="selectChip('rg_bath', this, 'bad')">入らず</div>
+        </div>
+      </div>
+      <div class="field-row">
+        <div class="field-label">洗髪</div>
+        <div class="radio-group" id="rg_hair">
+          <div class="radio-chip" onclick="selectChip('rg_hair', this, 'good')">した</div>
+          <div class="radio-chip" onclick="selectChip('rg_hair', this, 'bad')">してない</div>
+        </div>
+      </div>
+      <div class="field-row">
+        <div class="field-label">歯磨き</div>
+        <div class="radio-group" id="rg_teeth">
+          <div class="radio-chip" onclick="selectChip('rg_teeth', this, 'good')">朝</div>
+          <div class="radio-chip" onclick="selectChip('rg_teeth', this, 'good')">昼</div>
+          <div class="radio-chip" onclick="selectChip('rg_teeth', this, 'good')">夕</div>
+          <div class="radio-chip" onclick="selectChip('rg_teeth', this, 'good')">夜</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 自由欄 -->
+    <div class="section-card">
+      <div class="section-title">📝 自由欄・悩み・困りごと</div>
+      <div class="field-row" style="flex-direction:column;align-items:flex-start;gap:8px">
+        <div class="field-label">自由欄</div>
+        <textarea class="field-input" id="f_memo" placeholder="自由に記入してください"></textarea>
+      </div>
+      <div class="field-row" style="flex-direction:column;align-items:flex-start;gap:8px;margin-top:8px">
+        <div class="field-label">悩み・困りごと</div>
+        <textarea class="field-input" id="f_trouble" placeholder="気になることなど"></textarea>
+      </div>
+    </div>
+
+    <button class="save-btn" id="saveBtn" onclick="saveRecord()">💾 記録を保存する</button>
+    <div style="height:20px"></div>
+  </div>
+
+  <!-- VIEW PAGE -->
+  <div class="page" id="viewTab">
+    <div class="loading" id="viewLoading">
+      <div class="spinner"></div>
+      読み込み中...
+    </div>
+    <div id="viewList"></div>
+  </div>
+
+  <!-- GRAPH PAGE -->
+  <div class="page" id="graphTab">
+    <div class="graph-controls">
+      <button class="graph-btn active" onclick="selectGraph('condition', this)">調子</button>
+      <button class="graph-btn" onclick="selectGraph('mood', this)">躁鬱</button>
+      <button class="graph-btn" onclick="selectGraph('fatigue', this)">疲労感</button>
+      <button class="graph-btn" onclick="selectGraph('weight', this)">体重</button>
+    </div>
+    <div class="chart-wrap">
+      <canvas id="mainChart" height="260"></canvas>
+    </div>
+    <div style="height:16px"></div>
+    <div class="graph-controls">
+      <button class="graph-btn active" onclick="selectPeriod(30, this)">30日</button>
+      <button class="graph-btn" onclick="selectPeriod(60, this)">60日</button>
+      <button class="graph-btn" onclick="selectPeriod(90, this)">90日</button>
+    </div>
+  </div>
+</div>
+
+<!-- DETAIL MODAL -->
+<div class="modal-overlay" id="detailModal" onclick="closeModal(event)">
+  <div class="modal-sheet">
+    <div class="modal-handle"></div>
+    <div class="modal-date" id="modalDate"></div>
+    <div id="modalContent"></div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+// ============================================================
+// CONFIG（GAS WebアプリのURLをここに設定）
+// ============================================================
+const GAS_URL = 'https://script.google.com/macros/s/AKfycbzU_ASLhh5rJlBD1FM8VgjJTkvCJDWeGolvXkdIFp7lT62wB4rqi4_O7i2xrFl6Wk9-/exec';
+
+// パスワード（GAS側でも照合するが、表示制御用にフロントでも持つ）
+const PASSWORDS = {
+  editor: 'editor_pass_here',
+  viewer: 'viewer_pass_here'
+};
+
+// ============================================================
+// STATE
+// ============================================================
+let currentRole = null;
+let currentDate = new Date();
+let allRecords = [];
+let chartInstance = null;
+let currentGraphKey = 'condition';
+let currentPeriod = 30;
+
+// ============================================================
+// LOGIN
+// ============================================================
+function selectRole(role) {
+  currentRole = role;
+  document.getElementById('btnEditor').classList.toggle('selected', role === 'editor');
+  document.getElementById('btnViewer').classList.toggle('selected', role === 'viewer');
+}
+
+function doLogin() {
+  if (!currentRole) { showToast('役割を選択してください'); return; }
+  const pw = document.getElementById('pwInput').value;
+  const err = document.getElementById('loginError');
+
+  if (pw === PASSWORDS[currentRole]) {
+    err.style.display = 'none';
+    document.getElementById('loginScreen').style.display = 'none';
+    document.getElementById('app').style.display = 'block';
+    document.getElementById('roleLabel').textContent = currentRole === 'editor' ? '✏️ 入力者' : '👁️ 閲覧者';
+
+    // 閲覧者は入力タブを隠す
+    if (currentRole === 'viewer') {
+      document.getElementById('tabInput').style.display = 'none';
+      showTab('viewTab', document.getElementById('tabView'));
+    }
+
+    updateDateLabel();
+    loadRecords();
+  } else {
+    err.style.display = 'block';
+  }
+}
+
+document.getElementById('pwInput').addEventListener('keydown', e => {
+  if (e.key === 'Enter') doLogin();
+});
+
+// ============================================================
+// DATE
+// ============================================================
+const WEEKDAYS = ['日','月','火','水','木','金','土'];
+
+function formatDate(d) {
+  return `${d.getFullYear()}年${d.getMonth()+1}月${d.getDate()}日（${WEEKDAYS[d.getDay()]}）`;
+}
+
+function toYMD(d) {
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+
+function updateDateLabel() {
+  document.getElementById('currentDateLabel').textContent = formatDate(currentDate);
+  loadFormForDate(toYMD(currentDate));
+}
+
+function changeDate(delta) {
+  currentDate.setDate(currentDate.getDate() + delta);
+  updateDateLabel();
+}
+
+function openDatePicker() {
+  const picker = document.getElementById('hiddenDatePicker');
+  picker.value = toYMD(currentDate);
+  picker.showPicker ? picker.showPicker() : picker.click();
+}
+
+function onDatePickerChange(val) {
+  currentDate = new Date(val + 'T00:00:00');
+  updateDateLabel();
+}
+
+// ============================================================
+// CHIPS
+// ============================================================
+const chipValues = {};
+
+function selectChip(groupId, el, type) {
+  if (currentRole === 'viewer') return;
+  const group = document.getElementById(groupId);
+  group.querySelectorAll('.radio-chip').forEach(c => {
+    c.classList.remove('selected-good','selected-bad','selected-mid');
+  });
+
+  // 歯磨きは複数選択可
+  if (groupId === 'rg_teeth') {
+    el.classList.toggle('selected-good');
+    const selected = [...group.querySelectorAll('.selected-good')].map(c => c.textContent);
+    chipValues[groupId] = selected.join(',');
+    return;
+  }
+
+  el.classList.add(`selected-${type}`);
+  chipValues[groupId] = el.textContent;
+}
+
+function setChip(groupId, value) {
+  if (!value) return;
+  const group = document.getElementById(groupId);
+  if (!group) return;
+  group.querySelectorAll('.radio-chip').forEach(c => {
+    c.classList.remove('selected-good','selected-bad','selected-mid');
+    if (groupId === 'rg_teeth') {
+      if (value.split(',').includes(c.textContent)) c.classList.add('selected-good');
+    } else if (c.textContent === value) {
+      const colorMap = {
+        '熟眠':'good','浅眠':'mid','不眠':'bad',
+        'あり':'good','なし':'mid',
+        '悪い':'bad','普通':'mid','良い':'good',
+        '鬱':'bad','躁':'good',
+        '強':'bad','弱':'good',
+        '入った':'good','シャワー':'mid','入らず':'bad',
+        'した':'good','してない':'bad'
+      };
+      const cls = colorMap[value] || 'mid';
+      c.classList.add(`selected-${cls}`);
+    }
+  });
+  chipValues[groupId] = value;
+}
+
+// ============================================================
+// FORM LOAD / SAVE
+// ============================================================
+function clearForm() {
+  ['f_breakfast','f_lunch','f_dinner','f_snack','f_weight','f_kot',
+   'f_outing','f_visitor','f_dep1_time','f_dep1_dose','f_dep2_time','f_dep2_dose',
+   'f_kanpo1','f_kanpo2','f_kanpo3','f_memo','f_trouble'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+  ['rg_sleep','rg_nap','rg_condition','rg_mood','rg_fatigue','rg_bath','rg_hair','rg_teeth'].forEach(g => {
+    const group = document.getElementById(g);
+    if (group) group.querySelectorAll('.radio-chip').forEach(c =>
+      c.classList.remove('selected-good','selected-bad','selected-mid'));
+    chipValues[g] = '';
+  });
+}
+
+function loadFormForDate(ymd) {
+  const rec = allRecords.find(r => r.date === ymd);
+  clearForm();
+  if (!rec) return;
+
+  const set = (id, val) => { const el = document.getElementById(id); if (el && val != null) el.value = val; };
+  set('f_breakfast', rec.breakfast);
+  set('f_lunch', rec.lunch);
+  set('f_dinner', rec.dinner);
+  set('f_snack', rec.snack);
+  set('f_weight', rec.weight);
+  set('f_kot', rec.kot);
+  set('f_outing', rec.outing);
+  set('f_visitor', rec.visitor);
+  set('f_dep1_time', rec.dep1_time);
+  set('f_dep1_dose', rec.dep1_dose);
+  set('f_dep2_time', rec.dep2_time);
+  set('f_dep2_dose', rec.dep2_dose);
+  set('f_kanpo1', rec.kanpo1);
+  set('f_kanpo2', rec.kanpo2);
+  set('f_kanpo3', rec.kanpo3);
+  set('f_memo', rec.memo);
+  set('f_trouble', rec.trouble);
+
+  setChip('rg_sleep', rec.sleep);
+  setChip('rg_nap', rec.nap);
+  setChip('rg_condition', rec.condition);
+  setChip('rg_mood', rec.mood);
+  setChip('rg_fatigue', rec.fatigue);
+  setChip('rg_bath', rec.bath);
+  setChip('rg_hair', rec.hair);
+  setChip('rg_teeth', rec.teeth);
+}
+
+function getFormData() {
+  const g = id => { const el = document.getElementById(id); return el ? el.value : ''; };
+  return {
+    date: toYMD(currentDate),
+    breakfast: g('f_breakfast'), lunch: g('f_lunch'),
+    dinner: g('f_dinner'), snack: g('f_snack'),
+    weight: g('f_weight'), kot: g('f_kot'),
+    outing: g('f_outing'), visitor: g('f_visitor'),
+    sleep: chipValues['rg_sleep'] || '', nap: chipValues['rg_nap'] || '',
+    dep1_time: g('f_dep1_time'), dep1_dose: g('f_dep1_dose'),
+    dep2_time: g('f_dep2_time'), dep2_dose: g('f_dep2_dose'),
+    kanpo1: g('f_kanpo1'), kanpo2: g('f_kanpo2'), kanpo3: g('f_kanpo3'),
+    condition: chipValues['rg_condition'] || '',
+    mood: chipValues['rg_mood'] || '',
+    fatigue: chipValues['rg_fatigue'] || '',
+    bath: chipValues['rg_bath'] || '',
+    hair: chipValues['rg_hair'] || '',
+    teeth: chipValues['rg_teeth'] || '',
+    memo: g('f_memo'), trouble: g('f_trouble')
+  };
+}
+
+async function saveRecord() {
+  if (currentRole !== 'editor') return;
+  const btn = document.getElementById('saveBtn');
+  btn.disabled = true;
+  btn.textContent = '保存中...';
+
+  const data = getFormData();
+
+  try {
+    const res = await fetch(GAS_URL, {
+      method: 'POST',
+      mode: 'no-cors',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'save', role: currentRole, password: PASSWORDS[currentRole], data })
+    });
+    // no-corsではレスポンス読めないので楽観的更新
+    const idx = allRecords.findIndex(r => r.date === data.date);
+    if (idx >= 0) allRecords[idx] = data; else allRecords.push(data);
+    showToast('✅ 保存しました');
+  } catch(e) {
+    showToast('❌ 保存に失敗しました');
+  }
+
+  btn.disabled = false;
+  btn.textContent = '💾 記録を保存する';
+}
+
+// ============================================================
+// LOAD RECORDS FROM GAS
+// ============================================================
+async function loadRecords() {
+  try {
+    const res = await fetch(`${GAS_URL}?action=getAll&role=${currentRole}&password=${PASSWORDS[currentRole]}`);
+    const json = await res.json();
+    allRecords = json.records || [];
+  } catch(e) {
+    // GAS未設定時はサンプルデータで動作確認
+    allRecords = generateSampleData();
+  }
+  document.getElementById('viewLoading').style.display = 'none';
+  renderViewList();
+  loadFormForDate(toYMD(currentDate));
+  renderGraph();
+}
+
+// ============================================================
+// VIEW LIST
+// ============================================================
+function renderViewList() {
+  const sorted = [...allRecords].sort((a,b) => b.date.localeCompare(a.date));
+  if (sorted.length === 0) {
+    document.getElementById('viewList').innerHTML = '<div class="loading">記録がありません</div>';
+    return;
+  }
+
+  // 週ごとにグループ化
+  const weeks = {};
+  sorted.forEach(r => {
+    const d = new Date(r.date + 'T00:00:00');
+    const mon = new Date(d); mon.setDate(d.getDate() - d.getDay() + 1);
+    const key = toYMD(mon);
+    if (!weeks[key]) weeks[key] = [];
+    weeks[key].push(r);
+  });
+
+  let html = '';
+  Object.keys(weeks).sort((a,b) => b.localeCompare(a)).forEach(wk => {
+    const d = new Date(wk + 'T00:00:00');
+    html += `<div class="week-card">
+      <div class="week-header">${d.getFullYear()}年${d.getMonth()+1}月 第${Math.ceil(d.getDate()/7)}週</div>`;
+    weeks[wk].forEach(r => {
+      const rd = new Date(r.date + 'T00:00:00');
+      const badge = r.condition === '良い' ? '🟢' : r.condition === '悪い' ? '🔴' : '🟡';
+      html += `<div class="record-item" onclick="openModal('${r.date}')">
+        <div class="record-date">${badge} ${rd.getMonth()+1}月${rd.getDate()}日（${WEEKDAYS[rd.getDay()]}）</div>
+        <div class="record-summary">
+          ${r.sleep ? '睡眠:'+r.sleep : ''}
+          ${r.bath ? '　入浴:'+r.bath : ''}
+          ${r.mood ? '　気分:'+r.mood : ''}
+        </div>
+      </div>`;
+    });
+    html += '</div>';
+  });
+  document.getElementById('viewList').innerHTML = html;
+}
+
+// ============================================================
+// DETAIL MODAL
+// ============================================================
+function openModal(ymd) {
+  const r = allRecords.find(x => x.date === ymd);
+  if (!r) return;
+  const d = new Date(ymd + 'T00:00:00');
+  document.getElementById('modalDate').textContent =
+    `${d.getFullYear()}年${d.getMonth()+1}月${d.getDate()}日（${WEEKDAYS[d.getDay()]}）`;
+
+  const rows = [
+    ['朝食', r.breakfast], ['昼食', r.lunch], ['夕食', r.dinner], ['間食', r.snack],
+    ['体重', r.weight ? r.weight+'kg' : ''],
+    ['Kot', r.kot],
+    ['外出', r.outing], ['来訪', r.visitor],
+    ['睡眠', r.sleep], ['昼寝', r.nap],
+    ['デパス①', r.dep1_time && r.dep1_dose ? `${r.dep1_time} ${r.dep1_dose}錠` : ''],
+    ['デパス②', r.dep2_time && r.dep2_dose ? `${r.dep2_time} ${r.dep2_dose}錠` : ''],
+    ['漢方', [r.kanpo1, r.kanpo2, r.kanpo3].filter(Boolean).join(' / ')],
+    ['調子', r.condition], ['躁鬱', r.mood], ['疲労感', r.fatigue],
+    ['入浴', r.bath], ['洗髪', r.hair], ['歯磨き', r.teeth],
+    ['自由欄', r.memo], ['悩み・困りごと', r.trouble]
+  ];
+
+  document.getElementById('modalContent').innerHTML = rows
+    .filter(([k,v]) => v)
+    .map(([k,v]) => `<div class="detail-row"><div class="detail-key">${k}</div><div class="detail-val">${v}</div></div>`)
+    .join('');
+
+  document.getElementById('detailModal').classList.add('open');
+}
+
+function closeModal(e) {
+  if (e.target === document.getElementById('detailModal'))
+    document.getElementById('detailModal').classList.remove('open');
+}
+
+// ============================================================
+// GRAPH
+// ============================================================
+const scoreMap = { '良い':3,'躁':3,'弱':3,'熟眠':3, '普通':2, '悪い':1,'鬱':1,'強':1,'不眠':1,'浅眠':2 };
+
+function selectGraph(key, btn) {
+  currentGraphKey = key;
+  document.querySelectorAll('.graph-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderGraph();
+}
+
+function selectPeriod(days, btn) {
+  currentPeriod = days;
+  document.querySelectorAll('.graph-controls:last-of-type .graph-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderGraph();
+}
+
+function renderGraph() {
+  const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - currentPeriod);
+  const filtered = allRecords
+    .filter(r => new Date(r.date + 'T00:00:00') >= cutoff)
+    .sort((a,b) => a.date.localeCompare(b.date));
+
+  const labels = filtered.map(r => {
+    const d = new Date(r.date + 'T00:00:00');
+    return `${d.getMonth()+1}/${d.getDate()}`;
+  });
+
+  let data, label, color;
+  if (currentGraphKey === 'weight') {
+    data = filtered.map(r => parseFloat(r.weight) || null);
+    label = '体重 (kg)'; color = '#7F77DD';
+  } else {
+    const keyMap = { condition:'condition', mood:'mood', fatigue:'fatigue' };
+    data = filtered.map(r => scoreMap[r[keyMap[currentGraphKey]]] || null);
+    label = { condition:'調子', mood:'躁鬱', fatigue:'疲労感' }[currentGraphKey];
+    color = { condition:'#5B8C7A', mood:'#7F77DD', fatigue:'#C0624A' }[currentGraphKey];
+  }
+
+  const ctx = document.getElementById('mainChart').getContext('2d');
+  if (chartInstance) chartInstance.destroy();
+
+  chartInstance = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [{
+        label,
+        data,
+        borderColor: color,
+        backgroundColor: color + '22',
+        borderWidth: 2.5,
+        pointRadius: 4,
+        pointBackgroundColor: color,
+        tension: 0.3,
+        fill: true,
+        spanGaps: true
+      }]
+    },
+    options: {
+      responsive: true,
+      plugins: { legend: { display: false } },
+      scales: {
+        y: currentGraphKey === 'weight'
+          ? { title: { display: true, text: 'kg' } }
+          : { min: 0.5, max: 3.5, ticks: {
+              stepSize: 1,
+              callback: v => ({ 1:'低/悪/強',2:'普通',3:'高/良/弱' }[v] || '')
+            }}
+      }
+    }
+  });
+}
+
+// ============================================================
+// TAB
+// ============================================================
+function showTab(pageId, tabEl) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.getElementById(pageId).classList.add('active');
+  tabEl.classList.add('active');
+  if (pageId === 'graphTab') renderGraph();
+}
+
+// ============================================================
+// TOAST
+// ============================================================
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2500);
+}
+
+// ============================================================
+// SAMPLE DATA（GAS未接続時の動作確認用）
+// ============================================================
+function generateSampleData() {
+  const data = [];
+  const moods = ['鬱','鬱','普通','普通','良い','普通','鬱'];
+  const conditions = ['悪い','悪い','普通','良い','良い','普通','悪い'];
+  for (let i = 29; i >= 0; i--) {
+    const d = new Date(); d.setDate(d.getDate() - i);
+    const idx = i % 7;
+    data.push({
+      date: toYMD(d),
+      breakfast: i % 2 === 0 ? 'トースト' : 'おにぎり',
+      lunch: 'うどん', dinner: 'ご飯・味噌汁', snack: '',
+      weight: (55 + Math.random() * 2).toFixed(1),
+      sleep: idx < 2 ? '不眠' : idx < 4 ? '浅眠' : '熟眠',
+      nap: idx % 3 === 0 ? 'あり' : 'なし',
+      condition: conditions[idx], mood: moods[idx],
+      fatigue: idx < 3 ? '強' : idx < 5 ? '普通' : '弱',
+      bath: idx % 3 === 0 ? '入らず' : idx % 3 === 1 ? 'シャワー' : '入った',
+      hair: 'した', teeth: '朝,夜',
+      dep1_time: '22:00', dep1_dose: '1',
+      dep2_time: '', dep2_dose: '',
+      kanpo1: '8:00', kanpo2: '12:00', kanpo3: '18:00',
+      kot: '', outing: '', visitor: '',
+      memo: '', trouble: ''
+    });
+  }
+  return data;
+}
+
+// ============================================================
+// INIT
+// ============================================================
+currentDate = new Date();
+</script>
+</body>
+</html>
