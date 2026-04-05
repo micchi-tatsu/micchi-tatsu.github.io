@@ -759,6 +759,9 @@
       </div>
     </div>
 
+    <div id="saveStatusMsg" style="text-align:center;font-size:13px;color:var(--text-sub);margin-bottom:8px;display:none;">
+      ⚠️ この日のデータは登録済みです。保存すると上書きされます。
+    </div>
     <button class="save-btn" id="saveBtn" onclick="saveRecord()">💾 記録を保存する</button>
     <div style="height:20px"></div>
   </div>
@@ -809,7 +812,7 @@
 // ============================================================
 // CONFIG（GAS WebアプリのURLをここに設定）
 // ============================================================
-const GAS_URL = 'https://script.google.com/macros/s/AKfycbzU_ASLhh5rJlBD1FM8VgjJTkvCJDWeGolvXkdIFp7lT62wB4rqi4_O7i2xrFl6Wk9-/exec';
+const GAS_URL = 'YOUR_GAS_WEB_APP_URL_HERE';
 
 // パスワード（GAS側でも照合するが、表示制御用にフロントでも持つ）
 const PASSWORDS = {
@@ -879,7 +882,24 @@ function toYMD(d) {
 
 function updateDateLabel() {
   document.getElementById('currentDateLabel').textContent = formatDate(currentDate);
-  loadFormForDate(toYMD(currentDate));
+  const ymd = toYMD(currentDate);
+  loadFormForDate(ymd);
+  updateSaveButton(ymd);
+}
+
+function updateSaveButton(ymd) {
+  const exists = allRecords.some(r => r.date === ymd);
+  const btn = document.getElementById('saveBtn');
+  const msg = document.getElementById('saveStatusMsg');
+  if (exists) {
+    btn.textContent = '🔄 記録を上書き更新する';
+    btn.style.background = 'var(--purple)';
+    msg.style.display = 'block';
+  } else {
+    btn.textContent = '💾 記録を新規保存する';
+    btn.style.background = 'var(--accent)';
+    msg.style.display = 'none';
+  }
 }
 
 function changeDate(delta) {
@@ -1036,7 +1056,7 @@ async function saveRecord() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action: 'save', role: currentRole, password: PASSWORDS[currentRole], data })
     });
-    // no-corsではレスポンス読めないので楽観的更新
+    // no-corsではレスポンス読めないので楽観的更新（UPSERT）
     const idx = allRecords.findIndex(r => r.date === data.date);
     if (idx >= 0) allRecords[idx] = data; else allRecords.push(data);
     showToast('✅ 保存しました');
@@ -1045,7 +1065,7 @@ async function saveRecord() {
   }
 
   btn.disabled = false;
-  btn.textContent = '💾 記録を保存する';
+  updateSaveButton(toYMD(currentDate));
 }
 
 // ============================================================
