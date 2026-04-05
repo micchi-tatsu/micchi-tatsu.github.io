@@ -375,6 +375,46 @@
   .save-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
   /* ===== VIEW ===== */
+  /* ===== YEAR SELECTOR ===== */
+  .year-selector {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: var(--surface);
+    border-radius: var(--radius);
+    padding: 12px 16px;
+    margin-bottom: 14px;
+    box-shadow: var(--shadow);
+  }
+
+  .year-arrow {
+    background: var(--surface2);
+    border: none;
+    border-radius: 8px;
+    width: 36px;
+    height: 36px;
+    font-size: 16px;
+    cursor: pointer;
+    color: var(--text);
+    transition: background 0.15s;
+  }
+
+  .year-arrow:hover { background: var(--border); }
+  .year-arrow:disabled { opacity: 0.3; cursor: not-allowed; }
+
+  .year-label {
+    font-family: 'Zen Kaku Gothic New', sans-serif;
+    font-weight: 700;
+    font-size: 18px;
+  }
+
+  .year-count {
+    font-size: 12px;
+    color: var(--text-sub);
+    text-align: center;
+    margin-bottom: 12px;
+  }
+
   .week-card {
     background: var(--surface);
     border-radius: var(--radius);
@@ -772,6 +812,12 @@
       <div class="spinner"></div>
       読み込み中...
     </div>
+    <!-- 年セレクター -->
+    <div class="year-selector" id="yearSelector" style="display:none">
+      <button class="year-arrow" onclick="changeYear(-1)">◀</button>
+      <div class="year-label" id="yearLabel">2026年</div>
+      <button class="year-arrow" onclick="changeYear(1)">▶</button>
+    </div>
     <div id="viewList"></div>
   </div>
 
@@ -812,7 +858,7 @@
 // ============================================================
 // CONFIG（GAS WebアプリのURLをここに設定）
 // ============================================================
-const GAS_URL = 'https://script.google.com/macros/s/AKfycbzU_ASLhh5rJlBD1FM8VgjJTkvCJDWeGolvXkdIFp7lT62wB4rqi4_O7i2xrFl6Wk9-/exec';
+const GAS_URL = 'YOUR_GAS_WEB_APP_URL_HERE';
 
 // パスワード（GAS側でも照合するが、表示制御用にフロントでも持つ）
 const PASSWORDS = {
@@ -1125,29 +1171,67 @@ async function loadRecords() {
 // ============================================================
 // VIEW LIST
 // ============================================================
+// ============================================================
+// 年セレクター
+// ============================================================
+let viewYear = new Date().getFullYear();
+
+function getAvailableYears() {
+  const years = new Set(allRecords.map(r => parseInt(r.date.split('-')[0])).filter(y => !isNaN(y)));
+  // 現在年は必ず含める
+  years.add(new Date().getFullYear());
+  return [...years].sort((a, b) => a - b);
+}
+
+function changeYear(delta) {
+  const years = getAvailableYears();
+  const idx = years.indexOf(viewYear) + delta;
+  if (idx < 0 || idx >= years.length) return;
+  viewYear = years[idx];
+  renderViewList();
+}
+
 function renderViewList() {
-  const sorted = [...allRecords].sort((a,b) => b.date.localeCompare(a.date));
-  if (sorted.length === 0) {
-    document.getElementById('viewList').innerHTML = '<div class="loading">記録がありません</div>';
+  const years = getAvailableYears();
+
+  // 年セレクターを表示
+  const selector = document.getElementById('yearSelector');
+  const yearLabel = document.getElementById('yearLabel');
+  selector.style.display = 'flex';
+  yearLabel.textContent = viewYear + '年';
+
+  // 矢印の有効/無効
+  const idx = years.indexOf(viewYear);
+  selector.querySelectorAll('.year-arrow')[0].disabled = (idx <= 0);
+  selector.querySelectorAll('.year-arrow')[1].disabled = (idx >= years.length - 1);
+
+  // 選択中の年でフィルタ
+  const filtered = allRecords
+    .filter(r => parseInt(r.date.split('-')[0]) === viewYear)
+    .sort((a, b) => b.date.localeCompare(a.date));
+
+  const listEl = document.getElementById('viewList');
+
+  if (filtered.length === 0) {
+    listEl.innerHTML = '<div class="loading">' + viewYear + '年の記録はありません</div>';
     return;
   }
 
-  // 週ごとにグループ化
-  const weeks = {};
-  sorted.forEach(r => {
-    const d = new Date(r.date + 'T00:00:00');
-    const mon = new Date(d); mon.setDate(d.getDate() - d.getDay() + 1);
-    const key = toYMD(mon);
-    if (!weeks[key]) weeks[key] = [];
-    weeks[key].push(r);
+  // 月ごとにグループ化
+  const months = {};
+  filtered.forEach(r => {
+    const key = r.date.substring(0, 7); // YYYY-MM
+    if (!months[key]) months[key] = [];
+    months[key].push(r);
   });
 
-  let html = '';
-  Object.keys(weeks).sort((a,b) => b.localeCompare(a)).forEach(wk => {
-    const d = new Date(wk + 'T00:00:00');
+  let html = '<div class="year-count">' + viewYear + '年：' + filtered.length + '件の記録</div>';
+
+  Object.keys(months).sort((a, b) => b.localeCompare(a)).forEach(ym => {
+    const [y, m] = ym.split('-');
     html += `<div class="week-card">
-      <div class="week-header">${d.getFullYear()}年${d.getMonth()+1}月 第${Math.ceil(d.getDate()/7)}週</div>`;
-    weeks[wk].forEach(r => {
+      <div class="week-header">${parseInt(m)}月（${months[ym].length}件）</div>`;
+    months[ym].forEach(r => {
       const rd = new Date(r.date + 'T00:00:00');
       const badge = r.condition === '良い' ? '🟢' : r.condition === '悪い' ? '🔴' : '🟡';
       html += `<div class="record-item" onclick="openModal('${r.date}')">
@@ -1161,7 +1245,8 @@ function renderViewList() {
     });
     html += '</div>';
   });
-  document.getElementById('viewList').innerHTML = html;
+
+  listEl.innerHTML = html;
 }
 
 // ============================================================
