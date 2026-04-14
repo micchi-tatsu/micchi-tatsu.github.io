@@ -375,6 +375,28 @@
   .save-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
   /* ===== VIEW ===== */
+  /* ===== 漢方時刻入力 ===== */
+  .kanpo-grid {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 8px;
+    align-items: center;
+  }
+  .kanpo-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .kanpo-label {
+    font-size: 12px;
+    color: var(--text-sub);
+    min-width: 42px;
+  }
+  .kanpo-time {
+    flex: 1;
+    min-width: 0;
+  }
+
   /* ===== CHECKBOX CHIP（歯磨き用） ===== */
   .check-group {
     display: flex;
@@ -802,11 +824,20 @@
         <button class="mic-btn" onclick="startVoice('dep2','meds',this)" title="音声：例「8時1錠」">🎤</button>
       </div>
       <div style="font-size:13px;color:var(--text-sub);margin:12px 0 8px">漢方</div>
-      <div class="med-row">
-        <input class="field-input" type="time" id="f_kanpo1">
-        <input class="field-input" type="time" id="f_kanpo2">
-        <input class="field-input" type="time" id="f_kanpo3">
-        <button class="mic-btn" onclick="startVoice('kanpo','kanpo',this)" title="音声：例「8時12時18時」">🎤</button>
+      <div class="kanpo-grid">
+        <div class="kanpo-row">
+          <span class="kanpo-label">1回目</span>
+          <input class="field-input kanpo-time" type="time" id="f_kanpo1">
+        </div>
+        <div class="kanpo-row">
+          <span class="kanpo-label">2回目</span>
+          <input class="field-input kanpo-time" type="time" id="f_kanpo2">
+        </div>
+        <div class="kanpo-row">
+          <span class="kanpo-label">3回目</span>
+          <input class="field-input kanpo-time" type="time" id="f_kanpo3">
+        </div>
+        <button class="mic-btn" onclick="startVoice('kanpo','kanpo',this)" title="音声：例「8時12時18時」" style="align-self:center">🎤</button>
       </div>
     </div>
 
