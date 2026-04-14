@@ -918,7 +918,7 @@
 // ============================================================
 // CONFIG（GAS WebアプリのURLをここに設定）
 // ============================================================
-const GAS_URL = 'https://script.google.com/macros/library/d/1gIS-9jbmUeVFvDAV-YQq0-wkjsqeZOhm_tRCSxZ5BQoyYf3AmPJu6EE6/5';
+const GAS_URL = 'https://script.google.com/macros/s/AKfycbxk70pWXz5FuNG5IDntpptHNPO0kySzPXjVTZjpEOaL7aqt_Fd1Zwajxvb70s-JMScY/exec';
 
 // パスワード（GAS側でも照合するが、表示制御用にフロントでも持つ）
 const PASSWORDS = {
@@ -1164,7 +1164,10 @@ async function saveRecord() {
       + '&password=' + encodeURIComponent(PASSWORDS[currentRole])
       + '&data=' + dataParam;
 
-    const res = await fetch(url);
+    const res = await fetch(url, {
+      redirect: 'follow',
+      method: 'GET'
+    });
     const json = await res.json();
 
     if (json.success) {
@@ -1207,7 +1210,10 @@ async function loadRecords() {
       + '&role=' + encodeURIComponent(currentRole)
       + '&password=' + encodeURIComponent(PASSWORDS[currentRole]);
 
-    const res = await fetch(url);
+    const res = await fetch(url, {
+      redirect: 'follow',
+      method: 'GET'
+    });
     if (!res.ok) throw new Error('HTTP ' + res.status);
 
     const json = await res.json();
