@@ -375,6 +375,50 @@
   .save-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
   /* ===== VIEW ===== */
+  /* ===== VOICE INPUT ===== */
+  .mic-btn {
+    flex-shrink: 0;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    border: none;
+    background: var(--surface2);
+    color: var(--text-sub);
+    font-size: 16px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+  }
+  .mic-btn:hover { background: var(--accent-light); color: var(--accent); }
+  .mic-btn.listening {
+    background: var(--warn);
+    color: white;
+    animation: pulse 0.8s ease-in-out infinite;
+  }
+  @keyframes pulse {
+    0%,100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(192,98,74,0.4); }
+    50% { transform: scale(1.08); box-shadow: 0 0 0 6px rgba(192,98,74,0); }
+  }
+  .voice-status {
+    position: fixed;
+    top: 70px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--warn);
+    color: white;
+    padding: 10px 20px;
+    border-radius: 20px;
+    font-size: 13px;
+    font-weight: 700;
+    z-index: 400;
+    display: none;
+    white-space: nowrap;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.2);
+  }
+  .voice-status.active { display: block; }
+
   /* ===== YEAR SELECTOR ===== */
   .year-selector {
     display: flex;
@@ -643,19 +687,19 @@
       <div class="section-title">🍽 食事</div>
       <div class="field-row">
         <div class="field-label">朝食</div>
-        <input class="field-input" type="text" id="f_breakfast" placeholder="例：トースト、ヨーグルト">
+        <input class="field-input" type="text" id="f_breakfast" placeholder="例：トースト、ヨーグルト"><button class="mic-btn" onclick="startVoice('f_breakfast','text',this)" title="音声入力">🎤</button>
       </div>
       <div class="field-row">
         <div class="field-label">昼食</div>
-        <input class="field-input" type="text" id="f_lunch" placeholder="例：うどん">
+        <input class="field-input" type="text" id="f_lunch" placeholder="例：うどん"><button class="mic-btn" onclick="startVoice('f_lunch','text',this)" title="音声入力">🎤</button>
       </div>
       <div class="field-row">
         <div class="field-label">夕食</div>
-        <input class="field-input" type="text" id="f_dinner" placeholder="例：ご飯、味噌汁">
+        <input class="field-input" type="text" id="f_dinner" placeholder="例：ご飯、味噌汁"><button class="mic-btn" onclick="startVoice('f_dinner','text',this)" title="音声入力">🎤</button>
       </div>
       <div class="field-row">
         <div class="field-label">間食等</div>
-        <input class="field-input" type="text" id="f_snack" placeholder="例：チョコ、お茶">
+        <input class="field-input" type="text" id="f_snack" placeholder="例：チョコ、お茶"><button class="mic-btn" onclick="startVoice('f_snack','text',this)" title="音声入力">🎤</button>
       </div>
     </div>
 
@@ -664,12 +708,12 @@
       <div class="section-title">⚖️ 体</div>
       <div class="field-row">
         <div class="field-label">体重</div>
-        <input class="field-input" type="number" step="0.1" id="f_weight" placeholder="kg" style="max-width:100px">
+        <input class="field-input" type="number" step="0.1" id="f_weight" placeholder="kg" style="max-width:100px"><button class="mic-btn" onclick="startVoice('f_weight','weight',this)" title="音声入力（例：55キロ）">🎤</button>
         <span style="color:var(--text-sub);font-size:14px">kg</span>
       </div>
       <div class="field-row">
         <div class="field-label">Kot</div>
-        <input class="field-input" type="text" id="f_kot" placeholder="メモ">
+        <input class="field-input" type="text" id="f_kot" placeholder="メモ"><button class="mic-btn" onclick="startVoice('f_kot','text',this)" title="音声入力">🎤</button>
       </div>
     </div>
 
@@ -678,11 +722,11 @@
       <div class="section-title">🚶 外出・来訪</div>
       <div class="field-row">
         <div class="field-label">外出</div>
-        <input class="field-input" type="text" id="f_outing" placeholder="行き先・目的など">
+        <input class="field-input" type="text" id="f_outing" placeholder="行き先・目的など"><button class="mic-btn" onclick="startVoice('f_outing','text',this)" title="音声入力">🎤</button>
       </div>
       <div class="field-row">
         <div class="field-label">来訪</div>
-        <input class="field-input" type="text" id="f_visitor" placeholder="訪問者など">
+        <input class="field-input" type="text" id="f_visitor" placeholder="訪問者など"><button class="mic-btn" onclick="startVoice('f_visitor','text',this)" title="音声入力">🎤</button>
       </div>
     </div>
 
@@ -696,6 +740,7 @@
           <div class="radio-chip" onclick="selectChip('rg_sleep', this, 'mid')">浅眠</div>
           <div class="radio-chip" onclick="selectChip('rg_sleep', this, 'bad')">不眠</div>
         </div>
+        <button class="mic-btn" onclick="startVoice('rg_sleep','chip',this)" title="音声：熟眠・浅眠・不眠">🎤</button>
       </div>
       <div class="field-row">
         <div class="field-label">お昼寝</div>
@@ -703,6 +748,7 @@
           <div class="radio-chip" onclick="selectChip('rg_nap', this, 'good')">あり</div>
           <div class="radio-chip" onclick="selectChip('rg_nap', this, 'mid')">なし</div>
         </div>
+        <button class="mic-btn" onclick="startVoice('rg_nap','chip',this)" title="音声：あり・なし">🎤</button>
       </div>
     </div>
 
@@ -714,17 +760,20 @@
         <input class="field-input" type="time" id="f_dep1_time" placeholder="時刻">
         <input class="field-input" type="number" step="0.5" min="0" id="f_dep1_dose" placeholder="錠数" style="width:70px">
         <span>錠</span>
+        <button class="mic-btn" onclick="startVoice('dep1','meds',this)" title="音声：例「22時30分1錠」">🎤</button>
       </div>
       <div class="med-row">
         <input class="field-input" type="time" id="f_dep2_time" placeholder="時刻">
         <input class="field-input" type="number" step="0.5" min="0" id="f_dep2_dose" placeholder="錠数" style="width:70px">
         <span>錠</span>
+        <button class="mic-btn" onclick="startVoice('dep2','meds',this)" title="音声：例「8時1錠」">🎤</button>
       </div>
       <div style="font-size:13px;color:var(--text-sub);margin:12px 0 8px">漢方</div>
       <div class="med-row">
         <input class="field-input" type="time" id="f_kanpo1">
         <input class="field-input" type="time" id="f_kanpo2">
         <input class="field-input" type="time" id="f_kanpo3">
+        <button class="mic-btn" onclick="startVoice('kanpo','kanpo',this)" title="音声：例「8時12時18時」">🎤</button>
       </div>
     </div>
 
@@ -738,6 +787,7 @@
           <div class="radio-chip" onclick="selectChip('rg_condition', this, 'mid')">普通</div>
           <div class="radio-chip" onclick="selectChip('rg_condition', this, 'good')">良い</div>
         </div>
+        <button class="mic-btn" onclick="startVoice('rg_condition','chip',this)" title="音声：悪い・普通・良い">🎤</button>
       </div>
       <div class="field-row">
         <div class="field-label">躁鬱</div>
@@ -746,6 +796,7 @@
           <div class="radio-chip" onclick="selectChip('rg_mood', this, 'mid')">普通</div>
           <div class="radio-chip" onclick="selectChip('rg_mood', this, 'good')">躁</div>
         </div>
+        <button class="mic-btn" onclick="startVoice('rg_mood','chip',this)" title="音声：鬱・普通・躁">🎤</button>
       </div>
       <div class="field-row">
         <div class="field-label">疲労感</div>
@@ -754,6 +805,7 @@
           <div class="radio-chip" onclick="selectChip('rg_fatigue', this, 'mid')">普通</div>
           <div class="radio-chip" onclick="selectChip('rg_fatigue', this, 'good')">弱</div>
         </div>
+        <button class="mic-btn" onclick="startVoice('rg_fatigue','chip',this)" title="音声：強・普通・弱">🎤</button>
       </div>
     </div>
 
@@ -767,6 +819,7 @@
           <div class="radio-chip" onclick="selectChip('rg_bath', this, 'mid')">シャワー</div>
           <div class="radio-chip" onclick="selectChip('rg_bath', this, 'bad')">入らず</div>
         </div>
+        <button class="mic-btn" onclick="startVoice('rg_bath','chip',this)" title="音声：入った・シャワー・入らず">🎤</button>
       </div>
       <div class="field-row">
         <div class="field-label">洗髪</div>
@@ -774,6 +827,7 @@
           <div class="radio-chip" onclick="selectChip('rg_hair', this, 'good')">した</div>
           <div class="radio-chip" onclick="selectChip('rg_hair', this, 'bad')">してない</div>
         </div>
+        <button class="mic-btn" onclick="startVoice('rg_hair','chip',this)" title="音声：した・してない">🎤</button>
       </div>
       <div class="field-row">
         <div class="field-label">歯磨き</div>
@@ -783,6 +837,7 @@
           <div class="radio-chip" onclick="selectChip('rg_teeth', this, 'good')">夕</div>
           <div class="radio-chip" onclick="selectChip('rg_teeth', this, 'good')">夜</div>
         </div>
+        <button class="mic-btn" onclick="startVoice('rg_teeth','chip',this)" title="音声：例「朝夜」">🎤</button>
       </div>
     </div>
 
@@ -792,10 +847,12 @@
       <div class="field-row" style="flex-direction:column;align-items:flex-start;gap:8px">
         <div class="field-label">自由欄</div>
         <textarea class="field-input" id="f_memo" placeholder="自由に記入してください"></textarea>
+        <button class="mic-btn" onclick="startVoice('f_memo','text',this)" title="音声入力" style="align-self:flex-end">🎤</button>
       </div>
       <div class="field-row" style="flex-direction:column;align-items:flex-start;gap:8px;margin-top:8px">
         <div class="field-label">悩み・困りごと</div>
         <textarea class="field-input" id="f_trouble" placeholder="気になることなど"></textarea>
+        <button class="mic-btn" onclick="startVoice('f_trouble','text',this)" title="音声入力" style="align-self:flex-end">🎤</button>
       </div>
     </div>
 
@@ -850,6 +907,9 @@
   </div>
 </div>
 
+<!-- VOICE STATUS -->
+<div class="voice-status" id="voiceStatus">🎤 聞いています...</div>
+
 <!-- TOAST -->
 <div class="toast" id="toast"></div>
 
@@ -858,12 +918,12 @@
 // ============================================================
 // CONFIG（GAS WebアプリのURLをここに設定）
 // ============================================================
-const GAS_URL = 'https://script.google.com/macros/library/d/1gIS-9jbmUeVFvDAV-YQq0-wkjsqeZOhm_tRCSxZ5BQoyYf3AmPJu6EE6/3';
+const GAS_URL = 'https://script.googleusercontent.com/macros/echo?user_content_key=AWDtjMWgwYP_KMlDQbXR-RTBXbOPw4fLhBZTlykancNlZLTJQ5uMB320dgo_2X0gDa3eWqDGmFmdeo7agi757ZoZiY-xzxNF-metISUfpIdLlWxReTtDLg7CmN_yf_tPaY-F_AqewjKrfAlD-eorhKgeniwHUccHaDklcwIF-q78dDmJoORjP3mOzAWVZbk_ZE3WEpn9uaHz6ThK65mydVAG6_bOJjt7TxkiP2HRPS-7y_D4eek1cySvaHmaABSKGXVRuNYgUY83le740RFqFmloNXo4bWePeQ&lib=MwIWgSYRx9sWdX5PugKA1rHFBUB7e2PIx';
 
 // パスワード（GAS側でも照合するが、表示制御用にフロントでも持つ）
 const PASSWORDS = {
-  editor: 'editor_pass_here',
-  viewer: 'viewer_pass_here'
+  editor: 'aya',
+  viewer: 'yoshida'
 };
 
 // ============================================================
@@ -1412,6 +1472,174 @@ function generateSampleData() {
     });
   }
   return data;
+}
+
+// ============================================================
+// VOICE INPUT ENGINE
+// ============================================================
+let voiceRecognition = null;
+let activeVoiceBtn   = null;
+
+function initVoice() {
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR) return null;
+  const rec = new SR();
+  rec.lang = 'ja-JP';
+  rec.interimResults = false;
+  rec.maxAlternatives = 1;
+  return rec;
+}
+
+// 音声開始
+function startVoice(targetId, mode, btn) {
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR) { showToast('⚠️ このブラウザは音声入力に対応していません'); return; }
+
+  // 既に録音中なら停止
+  if (voiceRecognition) {
+    voiceRecognition.stop();
+    voiceRecognition = null;
+    stopVoiceUI();
+    return;
+  }
+
+  voiceRecognition = initVoice();
+  activeVoiceBtn = btn;
+  btn.classList.add('listening');
+  btn.textContent = '⏹';
+
+  const statusEl = document.getElementById('voiceStatus');
+  statusEl.textContent = '🎤 話してください...';
+  statusEl.classList.add('active');
+
+  voiceRecognition.onresult = function(e) {
+    const transcript = e.results[0][0].transcript;
+    applyVoiceResult(targetId, mode, transcript);
+    showToast('🎤 「' + transcript + '」');
+  };
+
+  voiceRecognition.onerror = function(e) {
+    const msgs = {
+      'no-speech':       '音声が検出されませんでした',
+      'audio-capture':   'マイクが使用できません',
+      'not-allowed':     'マイクの使用が許可されていません',
+      'network':         'ネットワークエラーが発生しました'
+    };
+    showToast('⚠️ ' + (msgs[e.error] || e.error));
+    stopVoiceUI();
+  };
+
+  voiceRecognition.onend = function() {
+    voiceRecognition = null;
+    stopVoiceUI();
+  };
+
+  voiceRecognition.start();
+}
+
+function stopVoiceUI() {
+  document.getElementById('voiceStatus').classList.remove('active');
+  if (activeVoiceBtn) {
+    activeVoiceBtn.classList.remove('listening');
+    activeVoiceBtn.textContent = '🎤';
+    activeVoiceBtn = null;
+  }
+}
+
+// 認識結果を各モードで処理
+function applyVoiceResult(targetId, mode, text) {
+  const t = text.trim();
+
+  if (mode === 'text') {
+    // テキストフィールド：そのまま追記（既存内容がある場合は「、」で繋ぐ）
+    const el = document.getElementById(targetId);
+    if (!el) return;
+    el.value = el.value ? el.value + '、' + t : t;
+    return;
+  }
+
+  if (mode === 'weight') {
+    // 体重：「55キロ」「55.5kg」などから数値を抽出
+    const m = t.match(/(\d+\.?\d*)/);
+    if (m) {
+      document.getElementById(targetId).value = parseFloat(m[1]);
+    } else {
+      showToast('⚠️ 数値が聞き取れませんでした（例：55キロ）');
+    }
+    return;
+  }
+
+  if (mode === 'chip') {
+    // ラジオチップ：テキストにキーワードが含まれていれば選択
+    const group = document.getElementById(targetId);
+    if (!group) return;
+    const chips = group.querySelectorAll('.radio-chip');
+    let matched = false;
+    chips.forEach(chip => {
+      if (t.includes(chip.textContent)) {
+        chip.click();
+        matched = true;
+      }
+    });
+    if (!matched) showToast('⚠️ 「' + t + '」は選択肢に一致しませんでした');
+    return;
+  }
+
+  if (mode === 'meds') {
+    // 服薬：「22時30分1錠」→ timeとdoseに分割
+    // 時刻の抽出：「22時30分」「8時」「午後10時」など
+    let hour = null, min = 0;
+
+    // 午後・午前の処理
+    const ampm = t.includes('午後') ? 'pm' : t.includes('午前') ? 'am' : null;
+    const timeM = t.match(/(\d{1,2})時(?:(\d{1,2})分)?/);
+    if (timeM) {
+      hour = parseInt(timeM[1]);
+      min  = timeM[2] ? parseInt(timeM[2]) : 0;
+      if (ampm === 'pm' && hour < 12) hour += 12;
+      if (ampm === 'am' && hour === 12) hour = 0;
+    }
+
+    // 錠数の抽出：「1錠」「0.5錠」「半錠」
+    let dose = null;
+    const doseM = t.match(/(\d+\.?\d*)錠/);
+    const halfM = t.includes('半錠') || t.includes('半分');
+    if (doseM) dose = parseFloat(doseM[1]);
+    else if (halfM) dose = 0.5;
+
+    const prefix = targetId; // 'dep1' or 'dep2'
+    if (hour !== null) {
+      const hh = String(hour).padStart(2, '0');
+      const mm = String(min).padStart(2, '0');
+      const el = document.getElementById('f_' + prefix + '_time');
+      if (el) el.value = hh + ':' + mm;
+    }
+    if (dose !== null) {
+      const el = document.getElementById('f_' + prefix + '_dose');
+      if (el) el.value = dose;
+    }
+    if (hour === null && dose === null) {
+      showToast('⚠️ 時刻・錠数が聞き取れませんでした（例：22時30分1錠）');
+    }
+    return;
+  }
+
+  if (mode === 'kanpo') {
+    // 漢方：複数時刻を順番にセット「8時12時18時」
+    const matches = [...t.matchAll(/(\d{1,2})時(?:(\d{1,2})分)?/g)];
+    const fields = ['f_kanpo1', 'f_kanpo2', 'f_kanpo3'];
+    if (matches.length === 0) {
+      showToast('⚠️ 時刻が聞き取れませんでした（例：8時12時18時）');
+      return;
+    }
+    matches.slice(0, 3).forEach((m, i) => {
+      const hh = String(parseInt(m[1])).padStart(2, '0');
+      const mm = m[2] ? String(parseInt(m[2])).padStart(2, '0') : '00';
+      const el = document.getElementById(fields[i]);
+      if (el) el.value = hh + ':' + mm;
+    });
+    return;
+  }
 }
 
 // ============================================================
